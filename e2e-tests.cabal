@@ -127,6 +127,8 @@ test-suite antaeus-test
     Helpers.Tx
     Helpers.TypeConverters
     Helpers.Utils
+    PlutusScripts.Agda.Common
+    PlutusScripts.Agda.SM
     PlutusScripts.Basic.Common
     PlutusScripts.Basic.V_1_0
     PlutusScripts.Basic.V_1_1
