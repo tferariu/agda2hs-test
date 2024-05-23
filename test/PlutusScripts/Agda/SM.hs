@@ -56,7 +56,7 @@ smValidator param =
 
 
 --TT policy
-{-
+{--}
 ttPolicy :: PlutusV2.Address -> PlutusV2.TxOutRef -> PlutusV2.TokenName -> SerialisedScript
 ttPolicy adr outref tn =
   serialiseCompiledCode $
@@ -64,7 +64,7 @@ ttPolicy adr outref tn =
       `PlutusTx.unsafeApplyCode` PlutusTx.liftCode PLC.plcVersion100 adr
       `PlutusTx.unsafeApplyCode` PlutusTx.liftCode PLC.plcVersion100 outref
       `PlutusTx.unsafeApplyCode` PlutusTx.liftCode PLC.plcVersion100 tn
--}
+
 --mkPolicy :: Address -> TxOutRef -> TokenName ->  () -> ScriptContext -> Bool
 
 
