@@ -2,6 +2,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
+
+{-# OPTIONS_GHC -fno-strictness #-}
+{-# OPTIONS_GHC -fno-ignore-interface-pragmas #-}
+{-# OPTIONS_GHC -fno-omit-interface-pragmas #-}
+{-# OPTIONS_GHC -fobject-code #-}
+{-# OPTIONS_GHC -fno-specialise #-}
+
 {-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:target-version=1.0.0 #-}
 module PlutusScripts.Agda.SM where
 
@@ -38,7 +45,7 @@ import PlutusScripts.Agda.Common
 
 --SM validator
 
-{-
+{--}
 smValidator :: Params -> SerialisedScript
 smValidator param =
   serialiseCompiledCode $
@@ -46,7 +53,7 @@ smValidator param =
       `PlutusTx.unsafeApplyCode` PlutusTx.liftCode PLC.plcVersion100 param
 
 
--}
+
 
 --TT policy
 {-
