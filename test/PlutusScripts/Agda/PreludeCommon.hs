@@ -8,7 +8,7 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-missing-fields #-}
 
-{-# LANGUAGE NoImplicitPrelude     #-}
+--{-# LANGUAGE NoImplicitPrelude     #-}
 -- Not using all CardanoEra
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 
@@ -23,10 +23,10 @@ import PlutusLedgerApi.V2 --qualified as PV3
 import PlutusLedgerApi.V2.Contexts (findDatum, findOwnInput, ownCurrencySymbol, txSignedBy, getContinuingOutputs)
 import PlutusLedgerApi.V1.Address (pubKeyHashAddress)
 
-import PlutusTx.Prelude --qualified as P
+import PlutusTx.Prelude qualified as P
 import PlutusTx qualified as P
 
-import           Prelude              (Show (..), String)
+--import           Prelude              (Show (..), String)
 
 import Helpers.ScriptUtils
 
@@ -149,14 +149,14 @@ info ctx = scriptContextTxInfo ctx
 {-# INLINABLE ownInput #-}
 ownInput :: ScriptContext -> TxOut
 ownInput ctx = case findOwnInput ctx of
-        Nothing -> traceError "state input missing"
+        Nothing -> P.traceError "state input missing"
         Just i  -> txInInfoResolved i
 
 {-# INLINABLE ownOutput #-}
 ownOutput :: ScriptContext -> TxOut
 ownOutput ctx = case getContinuingOutputs ctx of
         [o] -> o
-        _   -> traceError "expected exactly one SM output"
+        _   -> P.traceError "expected exactly one SM output"
 
 {-# INLINABLE smDatum #-}
 smDatum :: Maybe Datum -> Maybe State
@@ -167,9 +167,9 @@ smDatum md = do
 {-# INLINABLE outputDatum #-}
 outputDatum :: ScriptContext -> State
 outputDatum ctx = case txOutDatum (ownOutput ctx) of
-        NoOutputDatum-> traceError "nt"
+        NoOutputDatum-> P.traceError "nt"
         OutputDatumHash dh -> case smDatum $ findDatum dh (scriptContextTxInfo ctx) of
-            Nothing -> traceError "hs"
+            Nothing -> P.traceError "hs"
             Just d  -> d
         OutputDatum d -> P.unsafeFromBuiltinData (getDatum d)
 
@@ -248,9 +248,9 @@ agdaValidator param oldLabel red ctx
 mkValidator :: Params -> State -> Input -> ScriptContext -> Bool
 mkValidator param st red ctx =
 
-    traceIfFalse "token missing from input" (getVal (ownInput ctx) (tToken st)  == 1)                 &&
-    traceIfFalse "token missing from output" (getVal (ownOutput ctx) (tToken st) == 1)                &&
-    traceIfFalse "failed Validation" (agdaValidator param (label st) red ctx)
+    P.traceIfFalse "token missing from input" (getVal (ownInput ctx) (tToken st)  == 1)                 &&
+    P.traceIfFalse "token missing from output" (getVal (ownOutput ctx) (tToken st) == 1)                &&
+    P.traceIfFalse "failed Validation" (agdaValidator param (label st) red ctx)
 
 
 {-
@@ -276,9 +276,9 @@ class (PV1.UnsafeFromData sc) => IsScriptContext sc where
 -- Thread Token
 {-# INLINABLE mkPolicy #-}
 mkPolicy :: Address -> TxOutRef -> TokenName -> () -> ScriptContext -> Bool
-mkPolicy addr oref tn () ctx = traceIfFalse "UTxO not consumed"   hasUTxO                  &&
-                          traceIfFalse "wrong amount minted" checkMintedAmount        &&
-                          traceIfFalse "not initial state" checkDatum  
+mkPolicy addr oref tn () ctx = P.traceIfFalse "UTxO not consumed"   hasUTxO                  &&
+                          P.traceIfFalse "wrong amount minted" checkMintedAmount        &&
+                          P.traceIfFalse "not initial state" checkDatum  
   where
     info :: TxInfo
     info = scriptContextTxInfo ctx
@@ -297,17 +297,17 @@ mkPolicy addr oref tn () ctx = traceIfFalse "UTxO not consumed"   hasUTxO       
     scriptOutput :: TxOut
     scriptOutput = case filter (\i -> (txOutAddress i == (addr))) (txInfoOutputs info) of
     	[o] -> o
-    	_ -> traceError "not unique SM output"
+    	_ -> P.traceError "not unique SM output"
     
     checkDatum :: Bool
     checkDatum = case txOutDatum scriptOutput of 
-        NoOutputDatum-> traceError "nd"
+        NoOutputDatum-> P.traceError "nd"
         OutputDatumHash dh -> case smDatum $ findDatum dh info of
-            Nothing -> traceError "nh"
+            Nothing -> P.traceError "nh"
             Just d  -> tToken d == AssetClass (cs, tn) && label d == Holding
         OutputDatum dat -> case P.unsafeFromBuiltinData @State (getDatum dat) of
             d -> tToken d == AssetClass (cs, tn) && label d == Holding 
-            _ -> traceError "?"
+            _ -> P.traceError "?"
 
 
 

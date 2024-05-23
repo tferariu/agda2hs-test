@@ -32,6 +32,34 @@ import PlutusScripts.Helpers (
 import PlutusTx qualified
 import PlutusTx.AssocMap qualified as AMap
 
+import PlutusCore.Core qualified as PLC
+import Helpers.ScriptUtils
+import PlutusScripts.Agda.Common
+
+--SM validator
+
+{-
+smValidator :: Params -> SerialisedScript
+smValidator param =
+  serialiseCompiledCode $
+    $$(PlutusTx.compile [|| \a -> mkUntypedValidator @PlutusV2.ScriptContext (mkValidator a) ||])
+      `PlutusTx.unsafeApplyCode` PlutusTx.liftCode PLC.plcVersion100 param
+
+
+-}
+--TT policy
+{-
+ttPolicy :: PlutusV2.Address -> PlutusV2.TxOutRef -> PlutusV2.TokenName -> SerialisedScript
+ttPolicy adr outref tn =
+  serialiseCompiledCode $
+    $$(PlutusTx.compile [||\a b c -> mkUntypedMintingPolicy @PlutusV2.ScriptContext (mkPolicy a b c)||])
+      `PlutusTx.unsafeApplyCode` PlutusTx.liftCode PLC.plcVersion100 adr
+      `PlutusTx.unsafeApplyCode` PlutusTx.liftCode PLC.plcVersion100 outref
+      `PlutusTx.unsafeApplyCode` PlutusTx.liftCode PLC.plcVersion100 tn
+-}
+--mkPolicy :: Address -> TxOutRef -> TokenName ->  () -> ScriptContext -> Bool
+
+
 -- AlwaysSucceeds minting policy --
 
 alwaysSucceedPolicy :: SerialisedScript
