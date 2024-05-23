@@ -47,6 +47,7 @@ smValidator param =
 
 
 -}
+
 --TT policy
 {-
 ttPolicy :: PlutusV2.Address -> PlutusV2.TxOutRef -> PlutusV2.TokenName -> SerialisedScript
