@@ -8,6 +8,9 @@
 {-# OPTIONS_GHC -fno-omit-interface-pragmas #-}
 {-# OPTIONS_GHC -fobject-code #-}
 {-# OPTIONS_GHC -fno-specialise #-}
+{-# OPTIONS_GHC -fno-spec-constr #-}
+--{-# OPTIONS_GHC -ddump-splices #-}
+
 
 {-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:target-version=1.0.0 #-}
 module PlutusScripts.Agda.SM where

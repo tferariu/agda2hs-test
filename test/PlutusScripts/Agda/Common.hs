@@ -13,6 +13,8 @@
 {-# OPTIONS_GHC -fno-omit-interface-pragmas #-}
 {-# OPTIONS_GHC -fobject-code #-}
 {-# OPTIONS_GHC -fno-specialise #-}
+{-# OPTIONS_GHC -fno-spec-constr #-}
+--{-# OPTIONS_GHC -ddump-splices #-}
 
 {-# LANGUAGE NoImplicitPrelude     #-}
 -- Not using all CardanoEra
