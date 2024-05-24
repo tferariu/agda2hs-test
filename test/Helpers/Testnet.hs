@@ -347,6 +347,143 @@ w1
   -> m (C.SigningKey C.PaymentKey, C.Address C.ShelleyAddr)
 w1 tempAbsPath networkId = (\(sKey, _, address) -> (sKey, address)) <$> w1All tempAbsPath networkId
 
+w2All
+  :: (MonadIO m, MonadTest m)
+  => FilePath
+  -> C.NetworkId
+  -> m (C.SigningKey C.PaymentKey, C.VerificationKey C.PaymentKey, C.Address C.ShelleyAddr)
+w2All tempAbsPath networkId = do
+  let w2VKeyFile = C.File $ tempAbsPath </> "utxo-keys/utxo2/utxo.vkey"
+      w2SKeyFile = C.File $ tempAbsPath </> "utxo-keys/utxo2/utxo.skey"
+  -- GenesisUTxOKey comes from cardano-testnet
+  mGenesisVKey :: Maybe (C.VerificationKey C.GenesisUTxOKey) <-
+    maybeReadAs (C.AsVerificationKey C.AsGenesisUTxOKey) w2VKeyFile
+  mGenesisSKey :: Maybe (C.SigningKey C.GenesisUTxOKey) <-
+    maybeReadAs (C.AsSigningKey C.AsGenesisUTxOKey) w2SKeyFile
+  -- PaymentKey comes from cardano-cli (the likely type for a locally created wallet)
+  mPaymentVKey :: Maybe (C.VerificationKey C.PaymentKey) <-
+    maybeReadAs (C.AsVerificationKey C.AsPaymentKey) w2VKeyFile
+  mPaymentSKey :: Maybe (C.SigningKey C.PaymentKey) <-
+    maybeReadAs (C.AsSigningKey C.AsPaymentKey) w2SKeyFile
+
+  let
+    vKey :: C.VerificationKey C.PaymentKey = maybe (fromJust mPaymentVKey) C.castVerificationKey mGenesisVKey
+    sKey :: C.SigningKey C.PaymentKey = maybe (fromJust mPaymentSKey) C.castSigningKey mGenesisSKey
+    address = makeAddress (Left vKey) networkId
+
+  return (sKey, vKey, address)
+
+w2
+  :: (MonadIO m, MonadTest m)
+  => -- => Either (LocalNodeOptions era) (TestnetOptions era)
+  FilePath
+  -> C.NetworkId
+  -> m (C.SigningKey C.PaymentKey, C.Address C.ShelleyAddr)
+w2 tempAbsPath networkId = (\(sKey, _, address) -> (sKey, address)) <$> w2All tempAbsPath networkId
+
+w3All
+  :: (MonadIO m, MonadTest m)
+  => FilePath
+  -> C.NetworkId
+  -> m (C.SigningKey C.PaymentKey, C.VerificationKey C.PaymentKey, C.Address C.ShelleyAddr)
+w3All tempAbsPath networkId = do
+  let w3VKeyFile = C.File $ tempAbsPath </> "utxo-keys/utxo3/utxo.vkey"
+      w3SKeyFile = C.File $ tempAbsPath </> "utxo-keys/utxo3/utxo.skey"
+  -- GenesisUTxOKey comes from cardano-testnet
+  mGenesisVKey :: Maybe (C.VerificationKey C.GenesisUTxOKey) <-
+    maybeReadAs (C.AsVerificationKey C.AsGenesisUTxOKey) w3VKeyFile
+  mGenesisSKey :: Maybe (C.SigningKey C.GenesisUTxOKey) <-
+    maybeReadAs (C.AsSigningKey C.AsGenesisUTxOKey) w3SKeyFile
+  -- PaymentKey comes from cardano-cli (the likely type for a locally created wallet)
+  mPaymentVKey :: Maybe (C.VerificationKey C.PaymentKey) <-
+    maybeReadAs (C.AsVerificationKey C.AsPaymentKey) w3VKeyFile
+  mPaymentSKey :: Maybe (C.SigningKey C.PaymentKey) <-
+    maybeReadAs (C.AsSigningKey C.AsPaymentKey) w3SKeyFile
+
+  let
+    vKey :: C.VerificationKey C.PaymentKey = maybe (fromJust mPaymentVKey) C.castVerificationKey mGenesisVKey
+    sKey :: C.SigningKey C.PaymentKey = maybe (fromJust mPaymentSKey) C.castSigningKey mGenesisSKey
+    address = makeAddress (Left vKey) networkId
+
+  return (sKey, vKey, address)
+
+w3
+  :: (MonadIO m, MonadTest m)
+  => -- => Either (LocalNodeOptions era) (TestnetOptions era)
+  FilePath
+  -> C.NetworkId
+  -> m (C.SigningKey C.PaymentKey, C.Address C.ShelleyAddr)
+w3 tempAbsPath networkId = (\(sKey, _, address) -> (sKey, address)) <$> w3All tempAbsPath networkId
+
+w4All
+  :: (MonadIO m, MonadTest m)
+  => FilePath
+  -> C.NetworkId
+  -> m (C.SigningKey C.PaymentKey, C.VerificationKey C.PaymentKey, C.Address C.ShelleyAddr)
+w4All tempAbsPath networkId = do
+  let w4VKeyFile = C.File $ tempAbsPath </> "utxo-keys/utxo4/utxo.vkey"
+      w4SKeyFile = C.File $ tempAbsPath </> "utxo-keys/utxo4/utxo.skey"
+  -- GenesisUTxOKey comes from cardano-testnet
+  mGenesisVKey :: Maybe (C.VerificationKey C.GenesisUTxOKey) <-
+    maybeReadAs (C.AsVerificationKey C.AsGenesisUTxOKey) w4VKeyFile
+  mGenesisSKey :: Maybe (C.SigningKey C.GenesisUTxOKey) <-
+    maybeReadAs (C.AsSigningKey C.AsGenesisUTxOKey) w4SKeyFile
+  -- PaymentKey comes from cardano-cli (the likely type for a locally created wallet)
+  mPaymentVKey :: Maybe (C.VerificationKey C.PaymentKey) <-
+    maybeReadAs (C.AsVerificationKey C.AsPaymentKey) w4VKeyFile
+  mPaymentSKey :: Maybe (C.SigningKey C.PaymentKey) <-
+    maybeReadAs (C.AsSigningKey C.AsPaymentKey) w4SKeyFile
+
+  let
+    vKey :: C.VerificationKey C.PaymentKey = maybe (fromJust mPaymentVKey) C.castVerificationKey mGenesisVKey
+    sKey :: C.SigningKey C.PaymentKey = maybe (fromJust mPaymentSKey) C.castSigningKey mGenesisSKey
+    address = makeAddress (Left vKey) networkId
+
+  return (sKey, vKey, address)
+
+w4
+  :: (MonadIO m, MonadTest m)
+  => -- => Either (LocalNodeOptions era) (TestnetOptions era)
+  FilePath
+  -> C.NetworkId
+  -> m (C.SigningKey C.PaymentKey, C.Address C.ShelleyAddr)
+w4 tempAbsPath networkId = (\(sKey, _, address) -> (sKey, address)) <$> w4All tempAbsPath networkId
+
+
+w5All
+  :: (MonadIO m, MonadTest m)
+  => FilePath
+  -> C.NetworkId
+  -> m (C.SigningKey C.PaymentKey, C.VerificationKey C.PaymentKey, C.Address C.ShelleyAddr)
+w5All tempAbsPath networkId = do
+  let w5VKeyFile = C.File $ tempAbsPath </> "utxo-keys/utxo5/utxo.vkey"
+      w5SKeyFile = C.File $ tempAbsPath </> "utxo-keys/utxo/utxo.skey"
+  -- GenesisUTxOKey comes from cardano-testnet
+  mGenesisVKey :: Maybe (C.VerificationKey C.GenesisUTxOKey) <-
+    maybeReadAs (C.AsVerificationKey C.AsGenesisUTxOKey) w5VKeyFile
+  mGenesisSKey :: Maybe (C.SigningKey C.GenesisUTxOKey) <-
+    maybeReadAs (C.AsSigningKey C.AsGenesisUTxOKey) w5SKeyFile
+  -- PaymentKey comes from cardano-cli (the likely type for a locally created wallet)
+  mPaymentVKey :: Maybe (C.VerificationKey C.PaymentKey) <-
+    maybeReadAs (C.AsVerificationKey C.AsPaymentKey) w5VKeyFile
+  mPaymentSKey :: Maybe (C.SigningKey C.PaymentKey) <-
+    maybeReadAs (C.AsSigningKey C.AsPaymentKey) w5SKeyFile
+
+  let
+    vKey :: C.VerificationKey C.PaymentKey = maybe (fromJust mPaymentVKey) C.castVerificationKey mGenesisVKey
+    sKey :: C.SigningKey C.PaymentKey = maybe (fromJust mPaymentSKey) C.castSigningKey mGenesisSKey
+    address = makeAddress (Left vKey) networkId
+
+  return (sKey, vKey, address)
+
+w5
+  :: (MonadIO m, MonadTest m)
+  => -- => Either (LocalNodeOptions era) (TestnetOptions era)
+  FilePath
+  -> C.NetworkId
+  -> m (C.SigningKey C.PaymentKey, C.Address C.ShelleyAddr)
+w5 tempAbsPath networkId = (\(sKey, _, address) -> (sKey, address)) <$> w5All tempAbsPath networkId
+
 data TestnetStakePool = TestnetStakePool
   { stakePoolSKey :: C.SigningKey C.StakePoolKey
   , stakePoolVKey :: C.VerificationKey C.StakePoolKey

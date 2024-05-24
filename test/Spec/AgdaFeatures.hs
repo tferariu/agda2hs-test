@@ -34,6 +34,8 @@ import PlutusLedgerApi.V2 qualified as PlutusV2
 import PlutusScripts.Basic.V_1_0 qualified as PS_1_0
 import PlutusScripts.Basic.V_1_1 qualified as PS_1_1
 import PlutusScripts.Agda.SM as SM
+import PlutusScripts.Agda.Common as SM
+import PlutusTx.Builtins qualified as BI
 import PlutusScripts.Helpers qualified as PS
 import PlutusScripts.V2TxInfo qualified as PS (
   checkV2TxInfoAssetIdV2,
@@ -46,6 +48,7 @@ import PlutusScripts.V2TxInfo qualified as PS (
   txInfoOutputs,
   txInfoSigs,
  )
+
 
 smTestInfo =
   TestInfo
@@ -63,18 +66,37 @@ smTest
   -> m (Maybe String)
 smTest networkOptions TestParams{localNodeConnectInfo, pparams, networkId, tempAbsPath} = do
   era <- TN.eraFromOptionsM networkOptions
-  (w1SKey, w1Address) <- TN.w1 tempAbsPath networkId
+  (w1SKey, w1VKey, w1Address) <- TN.w1All tempAbsPath networkId
+  (w2SKey, w2VKey, w2Address) <- TN.w2All tempAbsPath networkId
+  (w3SKey, w3VKey, w3Address) <- TN.w3All tempAbsPath networkId
+  (w4SKey, w4VKey, w4Address) <- TN.w4All tempAbsPath networkId
+  (w5SKey, w5VKey, w5Address) <- TN.w5All tempAbsPath networkId
   let sbe = toShelleyBasedEra era
 
   -- build a transaction to hold inline datum at script address
 
-  txIn <- Q.adaOnlyTxInAtAddress era localNodeConnectInfo w1Address
+  txIn <- Q.adaOnlyTxInAtAddress era localNodeConnectInfo w2Address
+
+  let par = Params {authSigs = [PlutusV2.PubKeyHash (BI.blake2b_224 (C.serialiseToRawBytes w5Address))], nr = 2}
+
+{-
+1. I can't find a function, but you need an inverse of this conversion function to get to ledger Addr type: https://github.com/IntersectMBO/cardano-api/blob/074114bb5257614de1315a8e291886b208d97fad/cardano-api/internal/Cardano/Api/Address.hs#L350-L354
+Found it. this is the funciton you need to convert api Address to ledger Addr: https://github.com/IntersectMBO/cardano-api/blob/074114bb5257614de1315a8e291886b208d97fad/cardano-api/internal/Cardano/Api/Address.hs#L633-L6382. Once you have Addr: https://github.com/IntersectMBO/cardano-ledger/blob/fd46bf1c7891c68c6c47e009b659052a9fc64915/libs/cardano-ledger-core/src/Cardano/Ledger/Address.hs#L185-L1883. You can convert Addr to plutus Address using this function: https://github.com/IntersectMBO/cardano-ledger/blob/fd46bf1c7891c68c6c47e009b659052a9fc64915/libs/cardano-ledger-core/src/Cardano/Ledger/Plutus/TxInfo.hs#L153-L1574. Once you have plutus Address you can get all the credential stuff you are looking for.
+Here: https://github.com/IntersectMBO/plutus/blob/85cf1edc5db0b3c02fdd59f84e4e599334ed62bb/plutus-ledger-api/src/PlutusLedgerApi/V1/Address.hs#L32-L35
+and here: https://github.com/IntersectMBO/plutus/blob/85cf1edc5db0b3c02fdd59f84e4e599334ed62bb/plutus-ledger-api/src/PlutusLedgerApi/V1/Credential.hs#L57-L64 (edited) 
+-}
+
+--(BI.blake2b_224 w3SKey), w4Address, 
+  
 
   let scriptAddress = case era of
-        C.BabbageEra -> makeAddress (Right PS_1_0.alwaysSucceedSpendScriptHashV2) networkId
-        C.ConwayEra -> makeAddress (Right PS_1_1.alwaysSucceedSpendScriptHashV3) networkId
+        C.AlonzoEra -> error "Alonzo era is unsupported in this test"
+        C.BabbageEra -> makeAddress (Right (SM.smSpendScriptHashV2 par)) networkId
+        C.ConwayEra -> error "Conway era is unsupported in this test"
+
+        
       scriptTxOut = Tx.txOutWithInlineDatum era (C.lovelaceToValue 10_000_000) scriptAddress (PS.toScriptData ())
-      otherTxOut = Tx.txOut era (C.lovelaceToValue 5_000_000) w1Address
+      otherTxOut = Tx.txOut era (C.lovelaceToValue 5_000_000) w2Address
 
       txBodyContent =
         (Tx.emptyTxBodyContent sbe pparams)
@@ -82,7 +104,7 @@ smTest networkOptions TestParams{localNodeConnectInfo, pparams, networkId, tempA
           , C.txOuts = [scriptTxOut, otherTxOut]
           }
 
-  signedTx <- Tx.buildTx era localNodeConnectInfo txBodyContent w1Address w1SKey
+  signedTx <- Tx.buildTx era localNodeConnectInfo txBodyContent w2Address w2SKey
   Tx.submitTx sbe localNodeConnectInfo signedTx
   let txInAtScript = Tx.txIn (Tx.txId signedTx) 0
       otherTxIn = Tx.txIn (Tx.txId signedTx) 1
@@ -97,7 +119,7 @@ smTest networkOptions TestParams{localNodeConnectInfo, pparams, networkId, tempA
       C.ConwayEra -> Tx.txInWitness txInAtScript (PS_1_1.alwaysSucceedSpendWitnessV3 sbe Nothing Nothing)
     collateral = Tx.txInsCollateral era [otherTxIn]
     adaValue = C.lovelaceToValue 4_200_000
-    txOut = Tx.txOut era adaValue w1Address
+    txOut = Tx.txOut era adaValue w2Address
 
     txBodyContent2 =
       (Tx.emptyTxBodyContent sbe pparams)
@@ -106,12 +128,12 @@ smTest networkOptions TestParams{localNodeConnectInfo, pparams, networkId, tempA
         , C.txOuts = [txOut]
         }
 
-  signedTx2 <- Tx.buildTx era localNodeConnectInfo txBodyContent2 w1Address w1SKey
+  signedTx2 <- Tx.buildTx era localNodeConnectInfo txBodyContent2 w2Address w2SKey
   Tx.submitTx sbe localNodeConnectInfo signedTx2
   let expectedTxIn = Tx.txIn (Tx.txId signedTx2) 0
   -- Query for txo and assert it contains newly minted token
   resultTxOut <-
-    Q.getTxOutAtAddress era localNodeConnectInfo w1Address expectedTxIn "getTxOutAtAddress"
+    Q.getTxOutAtAddress era localNodeConnectInfo w2Address expectedTxIn "getTxOutAtAddress"
   txOutHasAdaValue <- Q.txOutHasValue resultTxOut adaValue
   assert "txOut has tokens" txOutHasAdaValue
 

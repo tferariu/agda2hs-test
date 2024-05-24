@@ -57,6 +57,27 @@ smValidator param =
 
 
 
+smSpendScriptV2 :: Params -> C.PlutusScript C.PlutusScriptV2
+smSpendScriptV2 par = C.PlutusScriptSerialised (smValidator par)
+
+smSpendScriptHashV2 :: Params -> C.ScriptHash
+smSpendScriptHashV2 par = C.hashScript $ unPlutusScriptV2 (smSpendScriptV2 par)
+
+smSpendWitnessV2
+  :: Params
+  -> C.ShelleyBasedEra era
+  -> Maybe C.TxIn
+  -> Maybe C.HashableScriptData
+  -> C.Witness C.WitCtxTxIn era
+smSpendWitnessV2 par era mRefScript mDatum =
+  C.ScriptWitness C.ScriptWitnessForSpending $
+    spendScriptWitness
+      era
+      plutusL2
+      (maybe (Left (smSpendScriptV2 par)) (\refScript -> Right refScript) mRefScript) -- script or reference script
+      (maybe C.InlineScriptDatum (\datum -> C.ScriptDatumForTxIn datum) mDatum) -- inline datum or datum value
+      (toScriptData ()) -- redeemer
+
 
 --TT policy
 {--}
