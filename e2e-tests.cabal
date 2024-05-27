@@ -50,7 +50,7 @@ common lang
   -- Other IOG dependencies
   --------------------------
   build-depends:
-    , cardano-api                    ^>=8.38.0.1
+    , cardano-api:{cardano-api, internal}  ^>=8.38.0.1
     , cardano-binary
     , cardano-crypto-class
     , cardano-crypto-wrapper
@@ -166,9 +166,9 @@ test-suite antaeus-test
     PlutusScripts.V1TxInfo
     PlutusScripts.V2TxInfo
     PlutusScripts.V3TxInfo
+    Spec.AgdaFeatures
     Spec.AlonzoFeatures
     Spec.BabbageFeatures
-    Spec.AgdaFeatures
     Spec.Builtins
     Spec.Builtins.Bitwise
     Spec.Builtins.BLS
@@ -181,7 +181,7 @@ test-suite antaeus-test
   -- Other IOG dependencies
   --------------------------
   build-depends:
-    , cardano-api           ^>=8.38.0.1
+    , cardano-api:{cardano-api, internal}  ^>=8.38.0.1
     , cardano-binary
     , cardano-crypto-class
     , cardano-ledger-core

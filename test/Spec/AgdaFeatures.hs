@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -14,6 +15,8 @@
 module Spec.AgdaFeatures where
 
 import Cardano.Api qualified as C
+import Cardano.Api.Address as C
+import Cardano.Ledger.Plutus.TxInfo
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Map qualified as Map
 import Data.Maybe (fromJust)
@@ -27,15 +30,18 @@ import Helpers.Test (assert)
 import Helpers.TestData (TestInfo (..), TestParams (..))
 import Helpers.Testnet qualified as TN
 import Helpers.Tx qualified as Tx
+import Helpers.TypeConverters as TC
 import Helpers.Utils qualified as U
+import PlutusLedgerApi.V1.Address as P
 import PlutusLedgerApi.V1.Interval qualified as P
 import PlutusLedgerApi.V1.Time qualified as P
-import PlutusLedgerApi.V2 qualified as PlutusV2
+import PlutusLedgerApi.V2 qualified as PV2
+import PlutusScripts.Agda.Common as SM
+import PlutusScripts.Agda.SM as SM
 import PlutusScripts.Basic.V_1_0 qualified as PS_1_0
 import PlutusScripts.Basic.V_1_1 qualified as PS_1_1
-import PlutusScripts.Agda.SM as SM
-import PlutusScripts.Agda.Common as SM
 import PlutusTx.Builtins qualified as BI
+
 import PlutusScripts.Helpers qualified as PS
 import PlutusScripts.V2TxInfo qualified as PS (
   checkV2TxInfoAssetIdV2,
@@ -48,7 +54,6 @@ import PlutusScripts.V2TxInfo qualified as PS (
   txInfoOutputs,
   txInfoSigs,
  )
-
 
 smTestInfo =
   TestInfo
@@ -66,37 +71,124 @@ smTest
   -> m (Maybe String)
 smTest networkOptions TestParams{localNodeConnectInfo, pparams, networkId, tempAbsPath} = do
   era <- TN.eraFromOptionsM networkOptions
-  (w1SKey, w1VKey, w1Address) <- TN.w1All tempAbsPath networkId
-  (w2SKey, w2VKey, w2Address) <- TN.w2All tempAbsPath networkId
-  (w3SKey, w3VKey, w3Address) <- TN.w3All tempAbsPath networkId
-  (w4SKey, w4VKey, w4Address) <- TN.w4All tempAbsPath networkId
-  (w5SKey, w5VKey, w5Address) <- TN.w5All tempAbsPath networkId
+  (w1SKey, w1VKey, w1Addr) <- TN.w1All tempAbsPath networkId
+  (w2SKey, w2VKey, w2Addr) <- TN.w2All tempAbsPath networkId
+  (w3SKey, w3VKey, w3Addr) <- TN.w3All tempAbsPath networkId
+  -- (w4SKey, w4VKey, w4Addr) <- TN.w4All tempAbsPath networkId
+  -- (w5SKey, w5VKey, w5Addr) <- TN.w5All tempAbsPath networkId
   let sbe = toShelleyBasedEra era
 
   -- build a transaction to hold inline datum at script address
+  txIn <- Q.adaOnlyTxInAtAddress era localNodeConnectInfo w2Addr
 
-  txIn <- Q.adaOnlyTxInAtAddress era localNodeConnectInfo w2Address
+  txIn2 <- Q.adaOnlyTxInAtAddress era localNodeConnectInfo w3Addr
 
-  let par = Params {authSigs = [PlutusV2.PubKeyHash (BI.blake2b_224 (C.serialiseToRawBytes w5Address))], nr = 2}
+  let placeholder = case era of
+        C.AlonzoEra -> error "Alonzo era is unsupported in this test"
+        C.BabbageEra -> error "Bingus" -- makeAddress (Right (SM.smSpendScriptHashV2 par)) networkId
+        C.ConwayEra -> error "Conway era is unsupported in this test"
 
-{-
-1. I can't find a function, but you need an inverse of this conversion function to get to ledger Addr type: https://github.com/IntersectMBO/cardano-api/blob/074114bb5257614de1315a8e291886b208d97fad/cardano-api/internal/Cardano/Api/Address.hs#L350-L354
-Found it. this is the funciton you need to convert api Address to ledger Addr: https://github.com/IntersectMBO/cardano-api/blob/074114bb5257614de1315a8e291886b208d97fad/cardano-api/internal/Cardano/Api/Address.hs#L633-L6382. Once you have Addr: https://github.com/IntersectMBO/cardano-ledger/blob/fd46bf1c7891c68c6c47e009b659052a9fc64915/libs/cardano-ledger-core/src/Cardano/Ledger/Address.hs#L185-L1883. You can convert Addr to plutus Address using this function: https://github.com/IntersectMBO/cardano-ledger/blob/fd46bf1c7891c68c6c47e009b659052a9fc64915/libs/cardano-ledger-core/src/Cardano/Ledger/Plutus/TxInfo.hs#L153-L1574. Once you have plutus Address you can get all the credential stuff you are looking for.
-Here: https://github.com/IntersectMBO/plutus/blob/85cf1edc5db0b3c02fdd59f84e4e599334ed62bb/plutus-ledger-api/src/PlutusLedgerApi/V1/Address.hs#L32-L35
-and here: https://github.com/IntersectMBO/plutus/blob/85cf1edc5db0b3c02fdd59f84e4e599334ed62bb/plutus-ledger-api/src/PlutusLedgerApi/V1/Credential.hs#L57-L64 (edited) 
--}
+  let asdf = placeholder
 
---(BI.blake2b_224 w3SKey), w4Address, 
-  
+  let (w1Pkh, w2Pkh, w3Pkh) = (waddrToPkh w1Addr, waddrToPkh w2Addr, waddrToPkh w3Addr)
+        where
+          waddrToPkh waddr = fromJust (P.toPubKeyHash (TC.toPlutusAddress (shelleyAddressInEra sbe waddr)))
+  let par = Params{authSigs = [w2Pkh, w3Pkh, w1Pkh], nr = 2}
 
   let scriptAddress = case era of
         C.AlonzoEra -> error "Alonzo era is unsupported in this test"
         C.BabbageEra -> makeAddress (Right (SM.smSpendScriptHashV2 par)) networkId
         C.ConwayEra -> error "Conway era is unsupported in this test"
 
-        
+  let plutusAddress = TC.toPlutusAddress (shelleyAddressInEra sbe scriptAddress)
+      tokenValue = C.valueFromList [((SM.ttAssetIdV2 plutusAddress (fromCardanoTxIn txIn) ""), 10)]
+      mintWitness = Map.fromList [SM.ttMintWitnessV2 plutusAddress (fromCardanoTxIn txIn) "" sbe Nothing]
+
+      collateral = Tx.txInsCollateral era [txIn]
+      scriptTxOut =
+        Tx.txOutWithInlineDatum
+          era
+          (C.lovelaceToValue 10_000_000 <> tokenValue)
+          scriptAddress
+          (PS.toScriptData Holding)
+      otherTxOut = Tx.txOut era (C.lovelaceToValue 5_000_000) w2Addr
+
+      txBodyContent =
+        (Tx.emptyTxBodyContent sbe pparams)
+          { C.txIns = Tx.pubkeyTxIns [txIn]
+          , C.txInsCollateral = collateral
+          , C.txMintValue = Tx.txMintValue era tokenValue mintWitness
+          , C.txOuts = [scriptTxOut, otherTxOut]
+          }
+
+  signedTx <- Tx.buildTx era localNodeConnectInfo txBodyContent w2Addr w2SKey
+  Tx.submitTx sbe localNodeConnectInfo signedTx
+  let txInAtScript = Tx.txIn (Tx.txId signedTx) 0
+      otherTxIn = Tx.txIn (Tx.txId signedTx) 1
+  Q.waitForTxInAtAddress era localNodeConnectInfo scriptAddress txInAtScript "waitForTxInAtAddress"
+
+  resultTxOut <-
+    Q.getTxOutAtAddress era localNodeConnectInfo scriptAddress txInAtScript "getTxOutAtAddress"
+  txOutHasAdaValue <- Q.txOutHasValue resultTxOut (C.lovelaceToValue 10_000_000 <> tokenValue)
+  assert "txOut has tokens" txOutHasAdaValue
+
+-- build a transaction to mint token using reference script
+{-
+  let
+    -- without reference script
+    scriptTxIn = Tx.txInWitness txInAtScript (SM.smSpendWitnessV2 par
+                 (Propose (lovelaceValue 4200000) w1Pkh 1000)
+                 sbe Nothing Nothing)
+    collateral2 = Tx.txInsCollateral era [otherTxIn]
+
+    scriptTxOut = Tx.txOutWithInlineDatum era (C.lovelaceToValue 10_000_000 <> tokenValue)
+                   scriptAddress (PS.toScriptData (Collecting (lovelaceValue 4200000) w1Pkh 1000 []))
+
+    txBodyContent2 =
+      (Tx.emptyTxBodyContent sbe pparams)
+        { C.txIns = [scriptTxIn]
+        , C.txInsCollateral = collateral2
+        , C.txOuts = [scriptTxOut]
+        }
+
+  signedTx2 <- Tx.buildTx era localNodeConnectInfo txBodyContent2 w2Addr w2SKey
+  Tx.submitTx sbe localNodeConnectInfo signedTx2
+  let expectedTxIn = Tx.txIn (Tx.txId signedTx2) 0
+  -- Query for txo and assert it contains newly minted token
+  resultTxOut <-
+    Q.getTxOutAtAddress era localNodeConnectInfo scriptAddress expectedTxIn "getTxOutAtAddress"
+  txOutHasAdaValue <- Q.txOutHasValue resultTxOut (C.lovelaceToValue 10_000_000 <> tokenValue)
+  assert "txOut has tokens" txOutHasAdaValue
+-}
+
+inlineDatumSpendTestInfo =
+  TestInfo
+    { testName = "inlineDatumSpendTest"
+    , testDescription =
+        "Spend funds locked by script by using inline datum and providing Plutus script in "
+          ++ "transaction as witness"
+    , test = inlineDatumSpendTest
+    }
+
+inlineDatumSpendTest
+  :: (MonadIO m, MonadTest m)
+  => TN.TestEnvironmentOptions era
+  -> TestParams era
+  -> m (Maybe String)
+inlineDatumSpendTest networkOptions TestParams{localNodeConnectInfo, pparams, networkId, tempAbsPath} = do
+  era <- TN.eraFromOptionsM networkOptions
+  (w1SKey, w1Address) <- TN.w1 tempAbsPath networkId
+  let sbe = toShelleyBasedEra era
+
+  -- build a transaction to hold inline datum at script address
+
+  txIn <- Q.adaOnlyTxInAtAddress era localNodeConnectInfo w1Address
+
+  let scriptAddress = case era of
+        C.BabbageEra -> makeAddress (Right PS_1_0.alwaysSucceedSpendScriptHashV2) networkId
+        C.ConwayEra -> makeAddress (Right PS_1_1.alwaysSucceedSpendScriptHashV3) networkId
       scriptTxOut = Tx.txOutWithInlineDatum era (C.lovelaceToValue 10_000_000) scriptAddress (PS.toScriptData ())
-      otherTxOut = Tx.txOut era (C.lovelaceToValue 5_000_000) w2Address
+      otherTxOut = Tx.txOut era (C.lovelaceToValue 5_000_000) w1Address
 
       txBodyContent =
         (Tx.emptyTxBodyContent sbe pparams)
@@ -104,7 +196,7 @@ and here: https://github.com/IntersectMBO/plutus/blob/85cf1edc5db0b3c02fdd59f84e
           , C.txOuts = [scriptTxOut, otherTxOut]
           }
 
-  signedTx <- Tx.buildTx era localNodeConnectInfo txBodyContent w2Address w2SKey
+  signedTx <- Tx.buildTx era localNodeConnectInfo txBodyContent w1Address w1SKey
   Tx.submitTx sbe localNodeConnectInfo signedTx
   let txInAtScript = Tx.txIn (Tx.txId signedTx) 0
       otherTxIn = Tx.txIn (Tx.txId signedTx) 1
@@ -119,7 +211,7 @@ and here: https://github.com/IntersectMBO/plutus/blob/85cf1edc5db0b3c02fdd59f84e
       C.ConwayEra -> Tx.txInWitness txInAtScript (PS_1_1.alwaysSucceedSpendWitnessV3 sbe Nothing Nothing)
     collateral = Tx.txInsCollateral era [otherTxIn]
     adaValue = C.lovelaceToValue 4_200_000
-    txOut = Tx.txOut era adaValue w2Address
+    txOut = Tx.txOut era adaValue w1Address
 
     txBodyContent2 =
       (Tx.emptyTxBodyContent sbe pparams)
@@ -128,16 +220,14 @@ and here: https://github.com/IntersectMBO/plutus/blob/85cf1edc5db0b3c02fdd59f84e
         , C.txOuts = [txOut]
         }
 
-  signedTx2 <- Tx.buildTx era localNodeConnectInfo txBodyContent2 w2Address w2SKey
+  signedTx2 <- Tx.buildTx era localNodeConnectInfo txBodyContent2 w1Address w1SKey
   Tx.submitTx sbe localNodeConnectInfo signedTx2
   let expectedTxIn = Tx.txIn (Tx.txId signedTx2) 0
   -- Query for txo and assert it contains newly minted token
   resultTxOut <-
-    Q.getTxOutAtAddress era localNodeConnectInfo w2Address expectedTxIn "getTxOutAtAddress"
+    Q.getTxOutAtAddress era localNodeConnectInfo w1Address expectedTxIn "getTxOutAtAddress"
   txOutHasAdaValue <- Q.txOutHasValue resultTxOut adaValue
   assert "txOut has tokens" txOutHasAdaValue
-
-
 
 checkTxInfoV2TestInfo =
   TestInfo
@@ -198,7 +288,7 @@ checkTxInfoV2Test networkOptions TestParams{..} = do
       expTxInfoFee = PS.txInfoFee fee
       expTxInfoMint = PS.txInfoMint tokenValues
       expDCert = [] -- not testing any staking registration certificate
-      expWdrl = PlutusV2.fromList [] -- not testing any staking reward withdrawal
+      expWdrl = PV2.fromList [] -- not testing any staking reward withdrawal
       expTxInfoSigs = PS.txInfoSigs [w1VKey]
       expTxInfoRedeemers = PS_1_0.alwaysSucceedPolicyTxInfoRedeemerV2
       expTxInfoData = PS.txInfoData [datum]
@@ -501,74 +591,6 @@ referenceScriptDatumHashSpendTest networkOptions TestParams{localNodeConnectInfo
           , C.txInsCollateral = collateral
           , C.txOuts = [txOut]
           }
-
-  signedTx2 <- Tx.buildTx era localNodeConnectInfo txBodyContent2 w1Address w1SKey
-  Tx.submitTx sbe localNodeConnectInfo signedTx2
-  let expectedTxIn = Tx.txIn (Tx.txId signedTx2) 0
-  -- Query for txo and assert it contains newly minted token
-  resultTxOut <-
-    Q.getTxOutAtAddress era localNodeConnectInfo w1Address expectedTxIn "getTxOutAtAddress"
-  txOutHasAdaValue <- Q.txOutHasValue resultTxOut adaValue
-  assert "txOut has tokens" txOutHasAdaValue
-
-inlineDatumSpendTestInfo =
-  TestInfo
-    { testName = "inlineDatumSpendTest"
-    , testDescription =
-        "Spend funds locked by script by using inline datum and providing Plutus script in "
-          ++ "transaction as witness"
-    , test = inlineDatumSpendTest
-    }
-
-inlineDatumSpendTest
-  :: (MonadIO m, MonadTest m)
-  => TN.TestEnvironmentOptions era
-  -> TestParams era
-  -> m (Maybe String)
-inlineDatumSpendTest networkOptions TestParams{localNodeConnectInfo, pparams, networkId, tempAbsPath} = do
-  era <- TN.eraFromOptionsM networkOptions
-  (w1SKey, w1Address) <- TN.w1 tempAbsPath networkId
-  let sbe = toShelleyBasedEra era
-
-  -- build a transaction to hold inline datum at script address
-
-  txIn <- Q.adaOnlyTxInAtAddress era localNodeConnectInfo w1Address
-
-  let scriptAddress = case era of
-        C.BabbageEra -> makeAddress (Right PS_1_0.alwaysSucceedSpendScriptHashV2) networkId
-        C.ConwayEra -> makeAddress (Right PS_1_1.alwaysSucceedSpendScriptHashV3) networkId
-      scriptTxOut = Tx.txOutWithInlineDatum era (C.lovelaceToValue 10_000_000) scriptAddress (PS.toScriptData ())
-      otherTxOut = Tx.txOut era (C.lovelaceToValue 5_000_000) w1Address
-
-      txBodyContent =
-        (Tx.emptyTxBodyContent sbe pparams)
-          { C.txIns = Tx.pubkeyTxIns [txIn]
-          , C.txOuts = [scriptTxOut, otherTxOut]
-          }
-
-  signedTx <- Tx.buildTx era localNodeConnectInfo txBodyContent w1Address w1SKey
-  Tx.submitTx sbe localNodeConnectInfo signedTx
-  let txInAtScript = Tx.txIn (Tx.txId signedTx) 0
-      otherTxIn = Tx.txIn (Tx.txId signedTx) 1
-  Q.waitForTxInAtAddress era localNodeConnectInfo scriptAddress txInAtScript "waitForTxInAtAddress"
-
-  -- build a transaction to mint token using reference script
-
-  let
-    -- without reference script
-    scriptTxIn = case era of
-      C.BabbageEra -> Tx.txInWitness txInAtScript (PS_1_0.alwaysSucceedSpendWitnessV2 sbe Nothing Nothing)
-      C.ConwayEra -> Tx.txInWitness txInAtScript (PS_1_1.alwaysSucceedSpendWitnessV3 sbe Nothing Nothing)
-    collateral = Tx.txInsCollateral era [otherTxIn]
-    adaValue = C.lovelaceToValue 4_200_000
-    txOut = Tx.txOut era adaValue w1Address
-
-    txBodyContent2 =
-      (Tx.emptyTxBodyContent sbe pparams)
-        { C.txIns = [scriptTxIn]
-        , C.txInsCollateral = collateral
-        , C.txOuts = [txOut]
-        }
 
   signedTx2 <- Tx.buildTx era localNodeConnectInfo txBodyContent2 w1Address w1SKey
   Tx.submitTx sbe localNodeConnectInfo signedTx2

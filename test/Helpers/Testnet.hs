@@ -449,7 +449,6 @@ w4
   -> m (C.SigningKey C.PaymentKey, C.Address C.ShelleyAddr)
 w4 tempAbsPath networkId = (\(sKey, _, address) -> (sKey, address)) <$> w4All tempAbsPath networkId
 
-
 w5All
   :: (MonadIO m, MonadTest m)
   => FilePath

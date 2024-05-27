@@ -2,17 +2,15 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
-
-{-# OPTIONS_GHC -fno-strictness #-}
 {-# OPTIONS_GHC -fno-ignore-interface-pragmas #-}
 {-# OPTIONS_GHC -fno-omit-interface-pragmas #-}
-{-# OPTIONS_GHC -fobject-code #-}
-{-# OPTIONS_GHC -fno-specialise #-}
 {-# OPTIONS_GHC -fno-spec-constr #-}
---{-# OPTIONS_GHC -ddump-splices #-}
-
-
+{-# OPTIONS_GHC -fno-specialise #-}
+{-# OPTIONS_GHC -fno-strictness #-}
+{-# OPTIONS_GHC -fobject-code #-}
+-- {-# OPTIONS_GHC -ddump-splices #-}
 {-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:target-version=1.0.0 #-}
+
 module PlutusScripts.Agda.SM where
 
 import Cardano.Api qualified as C
@@ -42,20 +40,18 @@ import PlutusScripts.Helpers (
 import PlutusTx qualified
 import PlutusTx.AssocMap qualified as AMap
 
-import PlutusCore.Core qualified as PLC
 import Helpers.ScriptUtils
+import PlutusCore.Core qualified as PLC
 import PlutusScripts.Agda.Common
 
---SM validator
+-- SM validator
 
 {--}
 smValidator :: Params -> SerialisedScript
 smValidator param =
   serialiseCompiledCode $
-    $$(PlutusTx.compile [|| \a -> mkUntypedValidator @PlutusV2.ScriptContext (mkValidator a) ||])
+    $$(PlutusTx.compile [||\a -> mkUntypedValidator @PlutusV2.ScriptContext (mkValidator a)||])
       `PlutusTx.unsafeApplyCode` PlutusTx.liftCode PLC.plcVersion100 param
-
-
 
 smSpendScriptV2 :: Params -> C.PlutusScript C.PlutusScriptV2
 smSpendScriptV2 par = C.PlutusScriptSerialised (smValidator par)
@@ -65,21 +61,21 @@ smSpendScriptHashV2 par = C.hashScript $ unPlutusScriptV2 (smSpendScriptV2 par)
 
 smSpendWitnessV2
   :: Params
+  -> Input
   -> C.ShelleyBasedEra era
   -> Maybe C.TxIn
   -> Maybe C.HashableScriptData
   -> C.Witness C.WitCtxTxIn era
-smSpendWitnessV2 par era mRefScript mDatum =
+smSpendWitnessV2 par input era mRefScript mDatum =
   C.ScriptWitness C.ScriptWitnessForSpending $
     spendScriptWitness
       era
       plutusL2
       (maybe (Left (smSpendScriptV2 par)) (\refScript -> Right refScript) mRefScript) -- script or reference script
       (maybe C.InlineScriptDatum (\datum -> C.ScriptDatumForTxIn datum) mDatum) -- inline datum or datum value
-      (toScriptData ()) -- redeemer
+      (toScriptData input) -- redeemer
 
-
---TT policy
+-- TT policy
 {--}
 ttPolicy :: PlutusV2.Address -> PlutusV2.TxOutRef -> PlutusV2.TokenName -> SerialisedScript
 ttPolicy adr outref tn =
@@ -89,8 +85,43 @@ ttPolicy adr outref tn =
       `PlutusTx.unsafeApplyCode` PlutusTx.liftCode PLC.plcVersion100 outref
       `PlutusTx.unsafeApplyCode` PlutusTx.liftCode PLC.plcVersion100 tn
 
---mkPolicy :: Address -> TxOutRef -> TokenName ->  () -> ScriptContext -> Bool
+ttPolicyScriptV2
+  :: PlutusV2.Address -> PlutusV2.TxOutRef -> PlutusV2.TokenName -> C.PlutusScript C.PlutusScriptV2
+ttPolicyScriptV2 addr oref tn = C.PlutusScriptSerialised (ttPolicy addr oref tn)
 
+ttPolicyIdV2 :: PlutusV2.Address -> PlutusV2.TxOutRef -> PlutusV2.TokenName -> C.PolicyId
+ttPolicyIdV2 addr oref tn = policyIdV2 (ttPolicy addr oref tn)
+
+ttPolicyScriptHashV2 :: PlutusV2.Address -> PlutusV2.TxOutRef -> PlutusV2.TokenName -> C.ScriptHash
+ttPolicyScriptHashV2 addr oref tn = C.hashScript $ unPlutusScriptV2 (ttPolicyScriptV2 addr oref tn)
+
+ttAssetIdV2 :: PlutusV2.Address -> PlutusV2.TxOutRef -> PlutusV2.TokenName -> C.AssetId
+ttAssetIdV2 addr oref tn = C.AssetId (ttPolicyIdV2 addr oref tn) ""
+
+ttPolicyTxInfoRedeemerV2
+  :: PlutusV2.Address -> PlutusV2.TxOutRef -> PlutusV2.TokenName -> PlutusV2.Map ScriptPurpose Redeemer
+ttPolicyTxInfoRedeemerV2 addr oref tn =
+  AMap.singleton
+    (Minting $ fromPolicyId (ttPolicyIdV2 addr oref tn))
+    (asRedeemer $ PlutusTx.toBuiltinData ())
+
+ttMintWitnessV2
+  :: PlutusV2.Address
+  -> PlutusV2.TxOutRef
+  -> PlutusV2.TokenName
+  -> C.ShelleyBasedEra era
+  -> Maybe C.TxIn -- maybe reference input
+  -> (C.PolicyId, C.ScriptWitness C.WitCtxMint era)
+ttMintWitnessV2 addr oref tn era Nothing =
+  ( policyIdV2 (ttPolicy addr oref tn)
+  , mintScriptWitness era plutusL2 (Left (ttPolicyScriptV2 addr oref tn)) (toScriptData ())
+  )
+ttMintWitnessV2 addr oref tn era (Just refTxIn) =
+  ( policyIdV2 (ttPolicy addr oref tn)
+  , mintScriptWitness era plutusL2 (Right refTxIn) (toScriptData ())
+  )
+
+-- mkPolicy :: Address -> TxOutRef -> TokenName ->  () -> ScriptContext -> Bool
 
 -- AlwaysSucceeds minting policy --
 
@@ -325,7 +356,7 @@ module PlutusScripts.Agda.SM (
   mintingHash,
 
   -- * Coverage
-  covIdx, 
+  covIdx,
 ) where
 
 import Control.Lens (makeClassyPrisms)
@@ -385,9 +416,7 @@ import PlutusCore.Version (plcVersion100)
 minVal :: Integer --Lovelace
 minVal = 2000000
 
-
 type Deadline = Integer
-
 
 data Label = Holding
            | Collecting Value PaymentPubKeyHash Deadline [PaymentPubKeyHash]
@@ -400,11 +429,9 @@ lEq Holding (Collecting _ _ _ _) = False
 lEq (Collecting _ _ _ _) Holding = False
 lEq (Collecting v pkh d sigs) (Collecting v' pkh' d' sigs') = v == v' && pkh == pkh' && d == d' && sigs == sigs'
 
-
 instance Eq Label where
     {-# INLINABLE (==) #-}
     b == c = lEq b c
-
 
 data State = State
     { label  :: Label
@@ -416,13 +443,11 @@ instance Eq State where
     b == c = (label b  == label c) &&
              (tToken b == tToken c)
 
-
 data Input = Propose Value PaymentPubKeyHash Deadline
            | Add PaymentPubKeyHash
            | Pay
            | Cancel
           deriving (Show)
-
 
 PlutusTx.unstableMakeIsData ''Label
 PlutusTx.makeLift ''Label
@@ -430,9 +455,6 @@ PlutusTx.unstableMakeIsData ''Input
 PlutusTx.makeLift ''Input
 PlutusTx.unstableMakeIsData ''State
 PlutusTx.makeLift ''State
-
-
-
 
 {-# INLINABLE query #-}
 query :: PaymentPubKeyHash -> [PaymentPubKeyHash] -> Bool
@@ -456,32 +478,23 @@ data Params = Params {authSigs :: [PaymentPubKeyHash], nr :: Integer}
 PlutusTx.unstableMakeIsData ''Params
 PlutusTx.makeLift ''Params
 
-
-
-
 {-# INLINABLE lovelaceValue #-}
 -- | A 'Value' containing the given quantity of Lovelace.
 lovelaceValue :: Integer -> Value
 lovelaceValue = singleton adaSymbol adaToken
-
 
 {-# INLINABLE lovelaces #-}
 lovelaces :: Value -> Integer
 lovelaces v = assetClassValueOf v (AssetClass (adaSymbol, adaToken))
 --getLovelace . fromValue
 
-
 {-# INLINABLE getVal #-}
 getVal :: TxOut -> AssetClass -> Integer
 getVal ip ac = assetClassValueOf (txOutValue ip) ac
 
-
-
-
 ------------------------------------------------------------------------------------------------------------------------------
 -- on-chain
 ------------------------------------------------------------------------------------------------------------------------------
-
 
 {-# INLINABLE info #-}
 -- ?? needed?
@@ -584,7 +597,6 @@ agdaValidator param oldLabel red ctx
                        Pay -> False
                        Cancel -> False
 
-
 --SM Validator
 {-# INLINABLE mkValidator #-}
 mkValidator :: Params -> State -> Input -> ScriptContext -> Bool
@@ -594,7 +606,7 @@ mkValidator param st red ctx =
     traceIfFalse "token missing from output" (getVal (ownOutput ctx) (tToken st) == 1)                &&
     traceIfFalse "failed Validation" (agdaValidator param (label st) red ctx)
 
-{-(case (agdaValidator param (label st) red ctx) of 
+{-(case (agdaValidator param (label st) red ctx) of
       True -> True
       False -> (traceError "failed Validation"))-}
 --traceIfFalse "failed validation" False --
@@ -603,7 +615,6 @@ data MultiSig
 instance Scripts.ValidatorTypes MultiSig where
   type RedeemerType MultiSig = Input
   type DatumType MultiSig = State
-
 
 smTypedValidator :: Params -> V2.TypedValidator MultiSig
 smTypedValidator = go
@@ -628,11 +639,11 @@ covIdx = getCovIdx $$(PlutusTx.compile [||mkValidator||])
 mkPolicy :: Address -> TxOutRef -> TokenName -> () -> ScriptContext -> Bool
 mkPolicy addr oref tn () ctx = traceIfFalse "UTxO not consumed"   hasUTxO                  &&
                           traceIfFalse "wrong amount minted" checkMintedAmount        &&
-                          traceIfFalse "not initial state" checkDatum  
+                          traceIfFalse "not initial state" checkDatum
   where
     info :: TxInfo
     info = scriptContextTxInfo ctx
-    
+
     cs :: CurrencySymbol
     cs = ownCurrencySymbol ctx
 
@@ -643,22 +654,21 @@ mkPolicy addr oref tn () ctx = traceIfFalse "UTxO not consumed"   hasUTxO       
     checkMintedAmount = case flattenValue (txInfoMint info) of
         [(_, tn', amt)] -> tn' == tn && amt == 1
         _               -> False
-      
+
     scriptOutput :: TxOut
     scriptOutput = case filter (\i -> (txOutAddress i == (addr))) (txInfoOutputs info) of
     	[o] -> o
     	_ -> traceError "not unique SM output"
-    
+
     checkDatum :: Bool
-    checkDatum = case txOutDatum scriptOutput of 
+    checkDatum = case txOutDatum scriptOutput of
         NoOutputDatum-> traceError "nd"
         OutputDatumHash dh -> case smDatum $ findDatum dh info of
             Nothing -> traceError "nh"
             Just d  -> tToken d == AssetClass (cs, tn) && label d == Holding
         OutputDatum dat -> case PlutusTx.unsafeFromBuiltinData @State (getDatum dat) of
-            d -> tToken d == AssetClass (cs, tn) && label d == Holding 
+            d -> tToken d == AssetClass (cs, tn) && label d == Holding
             _ -> traceError "?"
-
 
 policy :: Params -> TxOutRef -> TokenName -> V2.MintingPolicy
 policy p oref tn = Ledger.mkMintingPolicyScript $
@@ -666,7 +676,6 @@ policy p oref tn = Ledger.mkMintingPolicyScript $
     `PlutusTx.unsafeApplyCode` PlutusTx.liftCode plcVersion100 (mkOtherAddress p)
     `PlutusTx.unsafeApplyCode` PlutusTx.liftCode plcVersion100 oref
     `PlutusTx.unsafeApplyCode` PlutusTx.liftCode plcVersion100 tn
-
 
 curSymbol :: Params -> TxOutRef -> TokenName -> CurrencySymbol
 curSymbol p oref tn = Ledger.scriptCurrencySymbol $ (Ledger.Versioned (policy p oref tn) Ledger.PlutusV2)

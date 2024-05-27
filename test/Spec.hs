@@ -69,14 +69,14 @@ tests ResultsRefs{..} =
     "Plutus E2E Tests"
     [ -- Alonzo PV6 environment has "Chain not extended" error on start
       -- testProperty "Alonzo PV6 Tests" (pv6Tests pv6ResultsRef)
-    --  testProperty "Babbage PV7 Tests" (pv7Tests pv7ResultsRef)
-    --  testProperty "Babbage PV8 Tests" (pv8Tests pv8ResultsRef)
+      --  testProperty "Babbage PV7 Tests" (pv7Tests pv7ResultsRef)
+      --  testProperty "Babbage PV8 Tests" (pv8Tests pv8ResultsRef)
       testProperty "agda Tests" (agdaTests agdaResultsRef)
-    --, testProperty "Conway PV9 Tests" (pv9Tests pv9ResultsRef)
-    --, testProperty "Conway PV9 Governance Tests" (pv9GovernanceTests pv9GovResultsRef)
-    -- testProperty "Write Serialised Script Files" writeSerialisedScriptFiles
-    --  testProperty "debug" (debugTests pv8ResultsRef)
-    -- testProperty "Babbage PV8 Tests (on Preview testnet)" (localNodeTests pv8ResultsRef TN.localNodeOptionsPreview)
+      -- , testProperty "Conway PV9 Tests" (pv9Tests pv9ResultsRef)
+      -- , testProperty "Conway PV9 Governance Tests" (pv9GovernanceTests pv9GovResultsRef)
+      -- testProperty "Write Serialised Script Files" writeSerialisedScriptFiles
+      --  testProperty "debug" (debugTests pv8ResultsRef)
+      -- testProperty "Babbage PV8 Tests (on Preview testnet)" (localNodeTests pv8ResultsRef TN.localNodeOptionsPreview)
     ]
 
 agdaTests :: IORef [TestResult] -> H.Property
@@ -341,7 +341,8 @@ runTestsWithResults = do
       )
       :: IO (Either ExitCode ())
 
-  [pv6Results, pv7Results, pv8Results, pv9Results, pv9GovResults, agdaResults] <- traverse readIORef allRefs
+  [pv6Results, pv7Results, pv8Results, pv9Results, pv9GovResults, agdaResults] <-
+    traverse readIORef allRefs
 
   failureMessages <- liftIO $ allFailureMessages allRefs
   liftIO $ putStrLn $ "Total number of test failures: " ++ (show $ length failureMessages)

@@ -6,48 +6,54 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
+-- {-# OPTIONS_GHC -ddump-splices #-}
+{-# LANGUAGE NoImplicitPrelude #-}
 {-# OPTIONS_GHC -Wno-missing-fields #-}
-
-{-# OPTIONS_GHC -fno-strictness #-}
 {-# OPTIONS_GHC -fno-ignore-interface-pragmas #-}
 {-# OPTIONS_GHC -fno-omit-interface-pragmas #-}
-{-# OPTIONS_GHC -fobject-code #-}
-{-# OPTIONS_GHC -fno-specialise #-}
 {-# OPTIONS_GHC -fno-spec-constr #-}
---{-# OPTIONS_GHC -ddump-splices #-}
-
-{-# LANGUAGE NoImplicitPrelude     #-}
+{-# OPTIONS_GHC -fno-specialise #-}
+{-# OPTIONS_GHC -fno-strictness #-}
 -- Not using all CardanoEra
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
-
+{-# OPTIONS_GHC -fobject-code #-}
 
 module PlutusScripts.Agda.Common where
 
-import PlutusLedgerApi.V2 qualified as P
 import PlutusLedgerApi.V1.Interval qualified as P
-import PlutusLedgerApi.V1.Value --qualified as P
---import PlutusLedgerApi.V3 --qualified as PV3
-import PlutusLedgerApi.V2 --qualified as PV3
-import PlutusLedgerApi.V2.Contexts (findDatum, findOwnInput, ownCurrencySymbol, txSignedBy, getContinuingOutputs)
+import PlutusLedgerApi.V1.Value -- qualified as P
+-- import PlutusLedgerApi.V3 --qualified as PV3
+import PlutusLedgerApi.V2 qualified as P
+
+-- qualified as PV3
+
 import PlutusLedgerApi.V1.Address (pubKeyHashAddress)
+import PlutusLedgerApi.V2
+import PlutusLedgerApi.V2.Contexts (
+  findDatum,
+  findOwnInput,
+  getContinuingOutputs,
+  ownCurrencySymbol,
+  txSignedBy,
+ )
 
-import PlutusTx.Prelude --qualified as P
+-- qualified as P
 import PlutusTx qualified as P
+import PlutusTx.Prelude
 
-import           Prelude              (Show (..), String)
+import Prelude (Show (..), String)
 
 import Helpers.ScriptUtils
 
-minVal :: Integer --Lovelace
+minVal :: Integer -- Lovelace
 minVal = 2000000
-
 
 type Deadline = Integer
 
-
-data Label = Holding
-           | Collecting Value PubKeyHash Deadline [PubKeyHash]
-       deriving (Show)
+data Label
+  = Holding
+  | Collecting Value PubKeyHash Deadline [PubKeyHash]
+  deriving (Show)
 
 {-
 {-# INLINABLE listEq #-}
@@ -61,7 +67,7 @@ instance Eq [PubKeyHash] where
     {-# INLINABLE (==) #-}
     a == b = listEq a b-}
 
-{-# INLINABLE lEq #-}
+{-# INLINEABLE lEq #-}
 lEq :: Label -> Label -> Bool
 lEq Holding Holding = True
 lEq Holding (Collecting _ _ _ _) = False
@@ -69,26 +75,27 @@ lEq (Collecting _ _ _ _) Holding = False
 lEq (Collecting v pkh d sigs) (Collecting v' pkh' d' sigs') = v == v' && pkh == pkh' && d == d' && sigs == sigs'
 
 instance Eq Label where
-    {-# INLINABLE (==) #-}
-    b == c = lEq b c
+  {-# INLINEABLE (==) #-}
+  b == c = lEq b c
 
 data State = State
-    { label  :: Label
-    , tToken :: AssetClass
-    } deriving (Show)
-	
+  { label :: Label
+  , tToken :: AssetClass
+  }
+  deriving (Show)
+
 instance Eq State where
-    {-# INLINABLE (==) #-}
-    b == c = (label b  == label c) &&
-             (tToken b == tToken c)
+  {-# INLINEABLE (==) #-}
+  b == c =
+    (label b == label c)
+      && (tToken b == tToken c)
 
-
-data Input = Propose Value PubKeyHash Deadline
-           | Add PubKeyHash
-           | Pay
-           | Cancel
-          deriving (Show)
-
+data Input
+  = Propose Value PubKeyHash Deadline
+  | Add PubKeyHash
+  | Pay
+  | Cancel
+  deriving (Show)
 
 P.unstableMakeIsData ''Label
 P.makeLift ''Label
@@ -97,175 +104,175 @@ P.makeLift ''Input
 P.unstableMakeIsData ''State
 P.makeLift ''State
 
-
-
-
-{-# INLINABLE query #-}
+{-# INLINEABLE query #-}
 query :: PubKeyHash -> [PubKeyHash] -> Bool
 query pkh [] = False
 query pkh (x : l') = x == pkh || (query pkh l')
 
-{-# INLINABLE insert #-}
+{-# INLINEABLE insert #-}
 insert :: PubKeyHash -> [PubKeyHash] -> [PubKeyHash]
 insert pkh [] = [pkh]
-insert pkh (x : l')
-  = if x == pkh then x : l' else x : insert pkh l'
+insert pkh (x : l') =
+  if x == pkh then x : l' else x : insert pkh l'
 
-{-# INLINABLE count #-}
+{-# INLINEABLE count #-}
 count :: [PubKeyHash] -> Integer
 count [] = 0
 count (x : l) = 1 + count l
 
 data Params = Params {authSigs :: [PubKeyHash], nr :: Integer}
-    deriving (Show)
+  deriving (Show)
 
 P.unstableMakeIsData ''Params
 P.makeLift ''Params
 
+{-# INLINEABLE lovelaceValue #-}
 
-
-
-{-# INLINABLE lovelaceValue #-}
 -- | A 'Value' containing the given quantity of Lovelace.
 lovelaceValue :: Integer -> Value
 lovelaceValue = singleton adaSymbol adaToken
 
-
-{-# INLINABLE lovelaces #-}
+{-# INLINEABLE lovelaces #-}
 lovelaces :: Value -> Integer
 lovelaces v = assetClassValueOf v (AssetClass (adaSymbol, adaToken))
---getLovelace . fromValue
 
+-- getLovelace . fromValue
 
-{-# INLINABLE getVal #-}
+{-# INLINEABLE getVal #-}
 getVal :: TxOut -> AssetClass -> Integer
 getVal ip ac = assetClassValueOf (txOutValue ip) ac
-
-
-
 
 ------------------------------------------------------------------------------------------------------------------------------
 -- on-chain
 ------------------------------------------------------------------------------------------------------------------------------
 
-
-{-# INLINABLE info #-}
+{-# INLINEABLE info #-}
 -- ?? needed?
 info :: ScriptContext -> TxInfo
 info ctx = scriptContextTxInfo ctx
 
-{-# INLINABLE ownInput #-}
+{-# INLINEABLE ownInput #-}
 ownInput :: ScriptContext -> TxOut
 ownInput ctx = case findOwnInput ctx of
-        Nothing -> traceError "state input missing"
-        Just i  -> txInInfoResolved i
+  Nothing -> traceError "state input missing"
+  Just i -> txInInfoResolved i
 
-{-# INLINABLE ownOutput #-}
+{-# INLINEABLE ownOutput #-}
 ownOutput :: ScriptContext -> TxOut
 ownOutput ctx = case getContinuingOutputs ctx of
-        [o] -> o
-        _   -> traceError "expected exactly one SM output"
+  [o] -> o
+  _ -> traceError "expected exactly one SM output"
 
-{-# INLINABLE smDatum #-}
+{-# INLINEABLE smDatum #-}
 smDatum :: Maybe Datum -> Maybe State
 smDatum md = do
-    Datum d <- md
-    P.fromBuiltinData d
+  Datum d <- md
+  P.fromBuiltinData d
 
-{-# INLINABLE outputDatum #-}
+{-# INLINEABLE outputDatum #-}
 outputDatum :: ScriptContext -> State
 outputDatum ctx = case txOutDatum (ownOutput ctx) of
-        NoOutputDatum-> traceError "nt"
-        OutputDatumHash dh -> case smDatum $ findDatum dh (scriptContextTxInfo ctx) of
-            Nothing -> traceError "hs"
-            Just d  -> d
-        OutputDatum d -> P.unsafeFromBuiltinData (getDatum d)
+  NoOutputDatum -> traceError "nt"
+  OutputDatumHash dh -> case smDatum $ findDatum dh (scriptContextTxInfo ctx) of
+    Nothing -> traceError "hs"
+    Just d -> d
+  OutputDatum d -> P.unsafeFromBuiltinData (getDatum d)
 
-{-# INLINABLE newLabel #-}
+{-# INLINEABLE newLabel #-}
 newLabel :: ScriptContext -> Label
 newLabel ctx = label (outputDatum ctx)
 
-{-# INLINABLE oldValue #-}
+{-# INLINEABLE oldValue #-}
 oldValue :: ScriptContext -> Value
 oldValue ctx = txOutValue (ownInput ctx)
 
-{-# INLINABLE newValue #-}
+{-# INLINEABLE newValue #-}
 newValue :: ScriptContext -> Value
 newValue ctx = txOutValue (ownOutput ctx)
 
-{-# INLINABLE expired #-}
+{-# INLINEABLE expired #-}
 expired :: Deadline -> TxInfo -> Bool
-expired d info = P.before ((POSIXTime {getPOSIXTime = d})) (txInfoValidRange info)
+expired d info = P.before ((POSIXTime{getPOSIXTime = d})) (txInfoValidRange info)
 
-{-# INLINABLE checkSigned #-}
+{-# INLINEABLE checkSigned #-}
 checkSigned :: PubKeyHash -> ScriptContext -> Bool
 checkSigned pkh ctx = txSignedBy (scriptContextTxInfo ctx) pkh
 
-{-# INLINABLE checkPayment #-}
+{-# INLINEABLE checkPayment #-}
 checkPayment :: PubKeyHash -> Value -> TxInfo -> Bool
 checkPayment pkh v info = case filter (\i -> (txOutAddress i == (pubKeyHashAddress pkh))) (txInfoOutputs info) of
-    os -> any (\o -> txOutValue o == v) os
+  os -> any (\o -> txOutValue o == v) os
 
 -- <> (lovelaceValue minVal)
 
-{-# INLINABLE agdaValidator #-}
+{-# INLINEABLE agdaValidator #-}
 agdaValidator :: Params -> Label -> Input -> ScriptContext -> Bool
-agdaValidator param oldLabel red ctx
-  = case oldLabel of
-        Collecting v pkh d sigs -> case red of
-                                       Propose _ _ _ -> False
-                                       Add sig -> checkSigned sig ctx &&
-                                                    query sig (authSigs param) &&
-                                                      case newLabel ctx of
-                                                          Holding -> False
-                                                          Collecting v' pkh' d' sigs' -> v == v' &&
-                                                                                           pkh ==
-                                                                                             pkh'
-                                                                                             &&
-                                                                                             d == d'
-                                                                                               &&
-                                                                                               sigs'
-                                                                                                 ==
-                                                                                                 insert
-                                                                                                   sig
-                                                                                                   sigs
-                                       Pay -> count sigs >= nr param &&
-                                                case newLabel ctx of
-                                                    Holding -> checkPayment pkh v
-                                                                 (scriptContextTxInfo ctx)
-                                                                 && oldValue ctx == newValue ctx <> v
-                                                    Collecting _ _ _ _ -> False
-                                       Cancel -> case newLabel ctx of
-                                                     Holding -> expired d (scriptContextTxInfo ctx)
-                                                     Collecting _ _ _ _ -> False
-        Holding -> case red of
-                       Propose v pkh d -> geq (oldValue ctx) v &&
-                                            case newLabel ctx of
-                                                Holding -> False
-                                                Collecting v' pkh' d' sigs' -> v == v' &&
-                                                                                 pkh == pkh' &&
-                                                                                   d == d' &&
-                                                                                     sigs' == []
-                       Add _ -> False
-                       Pay -> False
-                       Cancel -> False
+agdaValidator param oldLabel red ctx =
+  case oldLabel of
+    Collecting v pkh d sigs -> case red of
+      Propose _ _ _ -> False
+      Add sig ->
+        checkSigned sig ctx
+          && query sig (authSigs param)
+          && case newLabel ctx of
+            Holding -> False
+            Collecting v' pkh' d' sigs' ->
+              v
+                == v'
+                && pkh
+                == pkh'
+                && d
+                == d'
+                && sigs'
+                == insert
+                  sig
+                  sigs
+      Pay ->
+        count sigs
+          >= nr param
+          && case newLabel ctx of
+            Holding ->
+              checkPayment
+                pkh
+                v
+                (scriptContextTxInfo ctx)
+                && oldValue ctx
+                == newValue ctx
+                <> v
+            Collecting _ _ _ _ -> False
+      Cancel -> case newLabel ctx of
+        Holding -> expired d (scriptContextTxInfo ctx)
+        Collecting _ _ _ _ -> False
+    Holding -> case red of
+      Propose v pkh d ->
+        geq (oldValue ctx) v
+          && case newLabel ctx of
+            Holding -> False
+            Collecting v' pkh' d' sigs' ->
+              v
+                == v'
+                && pkh
+                == pkh'
+                && d
+                == d'
+                && sigs'
+                == []
+      Add _ -> False
+      Pay -> False
+      Cancel -> False
 
-
---SM Validator
-{-# INLINABLE mkValidator #-}
+-- SM Validator
+{-# INLINEABLE mkValidator #-}
 mkValidator :: Params -> State -> Input -> ScriptContext -> Bool
 mkValidator param st red ctx =
-
-    traceIfFalse "token missing from input" (getVal (ownInput ctx) (tToken st)  == 1)                 &&
-    traceIfFalse "token missing from output" (getVal (ownOutput ctx) (tToken st) == 1)                &&
-    traceIfFalse "failed Validation" (agdaValidator param (label st) red ctx)
-
+  traceIfFalse "token missing from input" (getVal (ownInput ctx) (tToken st) == 1)
+    && traceIfFalse "token missing from output" (getVal (ownOutput ctx) (tToken st) == 1)
+    && traceIfFalse "failed Validation" (agdaValidator param (label st) red ctx)
 
 {-
 {-# INLINEABLE mkSmValidator #-}
 mkSmValidator :: P.BuiltinData -> P.BuiltinData -> P.BuiltinData -> ()
-mkSmValidator = 
-
+mkSmValidator =
 
 class (PV1.UnsafeFromData sc) => IsScriptContext sc where
   {-# INLINEABLE mkUntypedValidator #-}
@@ -282,15 +289,16 @@ class (PV1.UnsafeFromData sc) => IsScriptContext sc where
         (tracedUnsafeFrom "Script context decoded successfully" p)-}
 
 -- Thread Token
-{-# INLINABLE mkPolicy #-}
+{-# INLINEABLE mkPolicy #-}
 mkPolicy :: Address -> TxOutRef -> TokenName -> () -> ScriptContext -> Bool
-mkPolicy addr oref tn () ctx = traceIfFalse "UTxO not consumed"   hasUTxO                  &&
-                          traceIfFalse "wrong amount minted" checkMintedAmount        &&
-                          traceIfFalse "not initial state" checkDatum  
+mkPolicy addr oref tn () ctx =
+  traceIfFalse "UTxO not consumed" hasUTxO
+    && traceIfFalse "wrong amount minted" checkMintedAmount
+    && traceIfFalse "not initial state" checkDatum
   where
     info :: TxInfo
     info = scriptContextTxInfo ctx
-    
+
     cs :: CurrencySymbol
     cs = ownCurrencySymbol ctx
 
@@ -299,25 +307,23 @@ mkPolicy addr oref tn () ctx = traceIfFalse "UTxO not consumed"   hasUTxO       
 
     checkMintedAmount :: Bool
     checkMintedAmount = case flattenValue (txInfoMint info) of
-        [(_, tn', amt)] -> tn' == tn && amt == 1
-        _               -> False
-      
+      [(_, tn', amt)] -> amt == 1 -- && tn' == tn
+      _ -> False
+
     scriptOutput :: TxOut
     scriptOutput = case filter (\i -> (txOutAddress i == (addr))) (txInfoOutputs info) of
-    	[o] -> o
-    	_ -> traceError "not unique SM output"
-    
+      [o] -> o
+      _ -> traceError "not unique SM output"
+
     checkDatum :: Bool
-    checkDatum = case txOutDatum scriptOutput of 
-        NoOutputDatum-> traceError "nd"
-        OutputDatumHash dh -> case smDatum $ findDatum dh info of
-            Nothing -> traceError "nh"
-            Just d  -> tToken d == AssetClass (cs, tn) && label d == Holding
-        OutputDatum dat -> case P.unsafeFromBuiltinData @State (getDatum dat) of
-            d -> tToken d == AssetClass (cs, tn) && label d == Holding 
-            _ -> traceError "?"
-
-
+    checkDatum = case txOutDatum scriptOutput of
+      NoOutputDatum -> traceError "nd"
+      OutputDatumHash dh -> case smDatum $ findDatum dh info of
+        Nothing -> traceError "nh"
+        Just d -> tToken d == AssetClass (cs, tn) && label d == Holding
+      OutputDatum dat -> case P.unsafeFromBuiltinData @State (getDatum dat) of
+        d -> tToken d == AssetClass (cs, tn) && label d == Holding
+        _ -> traceError "?"
 
 {-
 -- Mint token name policy --
@@ -384,6 +390,5 @@ mkAlwaysSucceedSpend _datum _redeemer _sc = ()
 {-# INLINEABLE mkAlwaysFailsPolicy #-}
 mkAlwaysFailsPolicy :: P.BuiltinData -> P.BuiltinData -> ()
 mkAlwaysFailsPolicy _datum _sc = P.check $ P.error ()
-
 
 -}
