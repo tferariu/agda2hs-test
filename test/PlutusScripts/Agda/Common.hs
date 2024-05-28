@@ -17,6 +17,8 @@
 -- Not using all CardanoEra
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 {-# OPTIONS_GHC -fobject-code #-}
+--{-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:conservative-optimisation #-}
+{-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:preserve-logging #-}
 
 module PlutusScripts.Agda.Common where
 
@@ -40,10 +42,15 @@ import PlutusLedgerApi.V2.Contexts (
 -- qualified as P
 import PlutusTx qualified as P
 import PlutusTx.Prelude
+import PlutusTx.Show --qualified as S
+--import PlutusTx.Builtins.Class as B
+--import PlutusTx.Builtins as BI
+--import Data.Text qualified as Text
 
-import Prelude (Show (..), String)
+--import Prelude (Show (..), String)
 
 import Helpers.ScriptUtils
+
 
 minVal :: Integer -- Lovelace
 minVal = 2000000
@@ -288,13 +295,16 @@ class (PV1.UnsafeFromData sc) => IsScriptContext sc where
         (tracedUnsafeFrom "Redeemer decoded successfully" r)
         (tracedUnsafeFrom "Script context decoded successfully" p)-}
 
+
+
+
 -- Thread Token
 {-# INLINEABLE mkPolicy #-}
 mkPolicy :: Address -> TxOutRef -> TokenName -> () -> ScriptContext -> Bool
-mkPolicy addr oref tn () ctx =
-  traceIfFalse "UTxO not consumed" hasUTxO
+mkPolicy addr oref tn () ctx = traceIfFalse "UTxO not consumed" hasUTxO
     && traceIfFalse "wrong amount minted" checkMintedAmount
     && traceIfFalse "not initial state" checkDatum
+
   where
     info :: TxInfo
     info = scriptContextTxInfo ctx
@@ -307,7 +317,7 @@ mkPolicy addr oref tn () ctx =
 
     checkMintedAmount :: Bool
     checkMintedAmount = case flattenValue (txInfoMint info) of
-      [(_, tn', amt)] -> amt == 1 -- && tn' == tn
+      [(_, tn', amt)] -> amt == 1 && tn' == tn
       _ -> False
 
     scriptOutput :: TxOut
@@ -321,9 +331,12 @@ mkPolicy addr oref tn () ctx =
       OutputDatumHash dh -> case smDatum $ findDatum dh info of
         Nothing -> traceError "nh"
         Just d -> tToken d == AssetClass (cs, tn) && label d == Holding
-      OutputDatum dat -> case P.unsafeFromBuiltinData @State (getDatum dat) of
-        d -> tToken d == AssetClass (cs, tn) && label d == Holding
-        _ -> traceError "?"
+      OutputDatum dat -> traceError (show (P.fromBuiltinData @State (getDatum dat)))
+        {-case P.unsafeFromBuiltinData @State (getDatum dat) of
+        d -> traceError (show d) --tToken d == AssetClass (cs, tn) --tToken d == AssetClass (cs, tn) && label d == Holding
+        _ -> traceError "WHERE IS THE DATUM???"-}
+
+
 
 {-
 -- Mint token name policy --

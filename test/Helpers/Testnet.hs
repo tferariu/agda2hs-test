@@ -415,6 +415,8 @@ w3
   -> m (C.SigningKey C.PaymentKey, C.Address C.ShelleyAddr)
 w3 tempAbsPath networkId = (\(sKey, _, address) -> (sKey, address)) <$> w3All tempAbsPath networkId
 
+--actually only 3 wallets
+{-
 w4All
   :: (MonadIO m, MonadTest m)
   => FilePath
@@ -482,7 +484,7 @@ w5
   -> C.NetworkId
   -> m (C.SigningKey C.PaymentKey, C.Address C.ShelleyAddr)
 w5 tempAbsPath networkId = (\(sKey, _, address) -> (sKey, address)) <$> w5All tempAbsPath networkId
-
+-}
 data TestnetStakePool = TestnetStakePool
   { stakePoolSKey :: C.SigningKey C.StakePoolKey
   , stakePoolVKey :: C.VerificationKey C.StakePoolKey

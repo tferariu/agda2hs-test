@@ -10,6 +10,8 @@
 {-# OPTIONS_GHC -fobject-code #-}
 -- {-# OPTIONS_GHC -ddump-splices #-}
 {-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:target-version=1.0.0 #-}
+--{-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:conservative-optimisation #-}
+{-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:preserve-logging #-}
 
 module PlutusScripts.Agda.SM where
 
@@ -96,7 +98,7 @@ ttPolicyScriptHashV2 :: PlutusV2.Address -> PlutusV2.TxOutRef -> PlutusV2.TokenN
 ttPolicyScriptHashV2 addr oref tn = C.hashScript $ unPlutusScriptV2 (ttPolicyScriptV2 addr oref tn)
 
 ttAssetIdV2 :: PlutusV2.Address -> PlutusV2.TxOutRef -> PlutusV2.TokenName -> C.AssetId
-ttAssetIdV2 addr oref tn = C.AssetId (ttPolicyIdV2 addr oref tn) ""
+ttAssetIdV2 addr oref tn = C.AssetId (ttPolicyIdV2 addr oref tn) "ThreadToken"
 
 ttPolicyTxInfoRedeemerV2
   :: PlutusV2.Address -> PlutusV2.TxOutRef -> PlutusV2.TokenName -> PlutusV2.Map ScriptPurpose Redeemer

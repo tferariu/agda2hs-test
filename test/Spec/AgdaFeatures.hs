@@ -11,6 +11,8 @@
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
 -- Not using all CardanoEra
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
+--{-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:conservative-optimisation #-}
+{-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:preserve-logging #-}
 
 module Spec.AgdaFeatures where
 
@@ -36,6 +38,7 @@ import PlutusLedgerApi.V1.Address as P
 import PlutusLedgerApi.V1.Interval qualified as P
 import PlutusLedgerApi.V1.Time qualified as P
 import PlutusLedgerApi.V2 qualified as PV2
+import PlutusLedgerApi.V1.Value qualified as P
 import PlutusScripts.Agda.Common as SM
 import PlutusScripts.Agda.SM as SM
 import PlutusScripts.Basic.V_1_0 qualified as PS_1_0
@@ -83,12 +86,7 @@ smTest networkOptions TestParams{localNodeConnectInfo, pparams, networkId, tempA
 
   txIn2 <- Q.adaOnlyTxInAtAddress era localNodeConnectInfo w3Addr
 
-  let placeholder = case era of
-        C.AlonzoEra -> error "Alonzo era is unsupported in this test"
-        C.BabbageEra -> error "Bingus" -- makeAddress (Right (SM.smSpendScriptHashV2 par)) networkId
-        C.ConwayEra -> error "Conway era is unsupported in this test"
 
-  let asdf = placeholder
 
   let (w1Pkh, w2Pkh, w3Pkh) = (waddrToPkh w1Addr, waddrToPkh w2Addr, waddrToPkh w3Addr)
         where
@@ -101,8 +99,8 @@ smTest networkOptions TestParams{localNodeConnectInfo, pparams, networkId, tempA
         C.ConwayEra -> error "Conway era is unsupported in this test"
 
   let plutusAddress = TC.toPlutusAddress (shelleyAddressInEra sbe scriptAddress)
-      tokenValue = C.valueFromList [((SM.ttAssetIdV2 plutusAddress (fromCardanoTxIn txIn) ""), 10)]
-      mintWitness = Map.fromList [SM.ttMintWitnessV2 plutusAddress (fromCardanoTxIn txIn) "" sbe Nothing]
+      tokenValue = C.valueFromList [((SM.ttAssetIdV2 plutusAddress (fromCardanoTxIn txIn) "ThreadToken"), 1)]
+      mintWitness = Map.fromList [SM.ttMintWitnessV2 plutusAddress (fromCardanoTxIn txIn) "ThreadToken" sbe Nothing]
 
       collateral = Tx.txInsCollateral era [txIn]
       scriptTxOut =
@@ -110,7 +108,9 @@ smTest networkOptions TestParams{localNodeConnectInfo, pparams, networkId, tempA
           era
           (C.lovelaceToValue 10_000_000 <> tokenValue)
           scriptAddress
-          (PS.toScriptData Holding)
+          (PS.toScriptData (State { label = Holding , 
+            tToken = (P.AssetClass (PS.fromPolicyId (ttPolicyIdV2 plutusAddress (fromCardanoTxIn txIn) "ThreadToken")
+                     ,"ThreadToken")) }))
       otherTxOut = Tx.txOut era (C.lovelaceToValue 5_000_000) w2Addr
 
       txBodyContent =
