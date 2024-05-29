@@ -17,8 +17,8 @@
 -- Not using all CardanoEra
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 {-# OPTIONS_GHC -fobject-code #-}
---{-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:conservative-optimisation #-}
-{-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:preserve-logging #-}
+{-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:conservative-optimisation #-}
+--{-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:preserve-logging #-}
 
 module PlutusScripts.Agda.Common where
 
@@ -218,22 +218,16 @@ agdaValidator param oldLabel red ctx =
   case oldLabel of
     Collecting v pkh d sigs -> case red of
       Propose _ _ _ -> False
-      Add sig ->
-        checkSigned sig ctx
-          && query sig (authSigs param)
+      Add sig -> 
+        (traceIfFalse "surely not" (checkSigned sig ctx)
+          && traceIfFalse "here??" (query sig (authSigs param))
           && case newLabel ctx of
             Holding -> False
-            Collecting v' pkh' d' sigs' ->
-              v
-                == v'
-                && pkh
-                == pkh'
-                && d
-                == d'
-                && sigs'
-                == insert
-                  sig
-                  sigs
+            Collecting v' pkh' d' sigs' -> 
+                 traceIfFalse "value?" (v == v')
+              && traceIfFalse "target?" (pkh == pkh')
+              && traceIfFalse "deadline?" (d == d')
+              && traceIfFalse (show sigs' <> ": :" <> show sigs <> ": :" <> show sig) (sigs' == insert sig sigs))
       Pay ->
         count sigs
           >= nr param
@@ -271,7 +265,7 @@ agdaValidator param oldLabel red ctx =
 -- SM Validator
 {-# INLINEABLE mkValidator #-}
 mkValidator :: Params -> State -> Input -> ScriptContext -> Bool
-mkValidator param st red ctx =
+mkValidator param st red ctx = 
   traceIfFalse "token missing from input" (getVal (ownInput ctx) (tToken st) == 1)
     && traceIfFalse "token missing from output" (getVal (ownOutput ctx) (tToken st) == 1)
     && traceIfFalse "failed Validation" (agdaValidator param (label st) red ctx)
@@ -331,12 +325,11 @@ mkPolicy addr oref tn () ctx = traceIfFalse "UTxO not consumed" hasUTxO
       OutputDatumHash dh -> case smDatum $ findDatum dh info of
         Nothing -> traceError "nh"
         Just d -> tToken d == AssetClass (cs, tn) && label d == Holding
-      OutputDatum dat -> traceError (show (P.fromBuiltinData @State (getDatum dat)))
-        {-case P.unsafeFromBuiltinData @State (getDatum dat) of
-        d -> traceError (show d) --tToken d == AssetClass (cs, tn) --tToken d == AssetClass (cs, tn) && label d == Holding
-        _ -> traceError "WHERE IS THE DATUM???"-}
+      OutputDatum dat -> case P.fromBuiltinData @State (getDatum dat) of
+        Just d -> tToken d == AssetClass (cs, tn) && label d == Holding --tToken d == AssetClass (cs, tn) && label d == Holding
+        _ -> traceError "dn"
 
-
+--traceError (show (P.fromBuiltinData @State (getDatum dat)))
 
 {-
 -- Mint token name policy --

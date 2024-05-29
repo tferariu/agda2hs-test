@@ -10,8 +10,8 @@
 {-# OPTIONS_GHC -fobject-code #-}
 -- {-# OPTIONS_GHC -ddump-splices #-}
 {-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:target-version=1.0.0 #-}
---{-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:conservative-optimisation #-}
-{-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:preserve-logging #-}
+{-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:conservative-optimisation #-}
+--{-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:preserve-logging #-}
 
 module PlutusScripts.Agda.SM where
 
@@ -77,6 +77,8 @@ smSpendWitnessV2 par input era mRefScript mDatum =
       (maybe C.InlineScriptDatum (\datum -> C.ScriptDatumForTxIn datum) mDatum) -- inline datum or datum value
       (toScriptData input) -- redeemer
 
+
+
 -- TT policy
 {--}
 ttPolicy :: PlutusV2.Address -> PlutusV2.TxOutRef -> PlutusV2.TokenName -> SerialisedScript
@@ -122,6 +124,20 @@ ttMintWitnessV2 addr oref tn era (Just refTxIn) =
   ( policyIdV2 (ttPolicy addr oref tn)
   , mintScriptWitness era plutusL2 (Right refTxIn) (toScriptData ())
   )
+
+
+ttMintWitness
+  :: PlutusV2.Address
+  -> PlutusV2.TxOutRef
+  -> PlutusV2.TokenName
+  -> C.ShelleyBasedEra era
+  -> C.ExecutionUnits
+  -> (C.PolicyId, C.ScriptWitness C.WitCtxMint era)
+ttMintWitness addr oref tn era exunits =
+  ( policyIdV2 (ttPolicy addr oref tn)
+  , mintScriptWitness' era plutusL2 (Left (ttPolicyScriptV2 addr oref tn)) (toScriptData ()) exunits
+  )
+
 
 -- mkPolicy :: Address -> TxOutRef -> TokenName ->  () -> ScriptContext -> Bool
 

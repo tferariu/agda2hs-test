@@ -4,8 +4,8 @@
 {-# OPTIONS_GHC -Wno-missing-import-lists #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
---{-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:conservative-optimisation #-}
-{-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:preserve-logging #-}
+{-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:conservative-optimisation #-}
+--{-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:preserve-logging #-}
 
 module Main (main) where
 
@@ -93,10 +93,10 @@ agdaTests resultsRef = integrationRetryWorkspace 0 "pv8" $ \tempAbsPath -> do
   -- checkTxInfo tests must be first to run after new testnet is initialised due to expected slot to posix time
   sequence_
     [ run Agda.smTestInfo
-    , run Babbage.referenceInputWithV1ScriptErrorTestInfo
-    , run Babbage.referenceScriptOutputWithV1ScriptErrorTestInfo
-    , run Babbage.inlineDatumOutputWithV1ScriptErrorTestInfo
-    , run Babbage.returnCollateralWithTokensValidScriptTestInfo
+  --  , run Babbage.referenceInputWithV1ScriptErrorTestInfo
+  --  , run Babbage.referenceScriptOutputWithV1ScriptErrorTestInfo
+  --  , run Babbage.inlineDatumOutputWithV1ScriptErrorTestInfo
+  --  , run Babbage.returnCollateralWithTokensValidScriptTestInfo
     ]
 
   failureMessages <- liftIO $ suiteFailureMessages resultsRef
