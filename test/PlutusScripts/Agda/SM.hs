@@ -35,6 +35,7 @@ import PlutusScripts.Helpers (
   policyIdV1,
   policyIdV2,
   spendScriptWitness,
+  spendScriptWitness',
   toScriptData,
   unPlutusScriptV1,
   unPlutusScriptV2,
@@ -77,6 +78,45 @@ smSpendWitnessV2 par input era mRefScript mDatum =
       (maybe C.InlineScriptDatum (\datum -> C.ScriptDatumForTxIn datum) mDatum) -- inline datum or datum value
       (toScriptData input) -- redeemer
 
+
+smSpendWitness
+  :: Params
+  -> Input
+  -> C.ShelleyBasedEra era
+  -> Maybe C.TxIn
+  -> Maybe C.HashableScriptData
+  -> C.ExecutionUnits
+  -> C.Witness C.WitCtxTxIn era
+smSpendWitness par input era mRefScript mDatum exunits =
+  C.ScriptWitness C.ScriptWitnessForSpending $
+    spendScriptWitness'
+      era
+      plutusL2
+      (maybe (Left (smSpendScriptV2 par)) (\refScript -> Right refScript) mRefScript) -- script or reference script
+      (maybe C.InlineScriptDatum (\datum -> C.ScriptDatumForTxIn datum) mDatum) -- inline datum or datum value
+      (toScriptData input) -- redeemer
+      exunits
+
+{-
+spendScriptWitness' era lang@(C.PlutusScriptLanguage C.PlutusScriptV2) (Left script) datumWit redeemer = do
+  C.PlutusScriptWitness
+    (maybeScriptWitness era lang $ C.scriptLanguageSupportedInEra era lang)
+    C.PlutusScriptV2
+    (C.PScript script)
+    datumWit
+    redeemer
+
+ttMintWitness
+  :: PlutusV2.Address
+  -> PlutusV2.TxOutRef
+  -> PlutusV2.TokenName
+  -> C.ShelleyBasedEra era
+  -> C.ExecutionUnits
+  -> (C.PolicyId, C.ScriptWitness C.WitCtxMint era)
+ttMintWitness addr oref tn era exunits =
+  ( policyIdV2 (ttPolicy addr oref tn)
+  , mintScriptWitness' era plutusL2 (Left (ttPolicyScriptV2 addr oref tn)) (toScriptData ()) exunits
+  )-}
 
 
 -- TT policy

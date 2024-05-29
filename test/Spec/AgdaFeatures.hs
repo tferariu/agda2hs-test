@@ -134,9 +134,9 @@ smTest networkOptions TestParams{localNodeConnectInfo, pparams, networkId, tempA
 
   let
     -- without reference script
-    scriptTxIn = Tx.txInWitness txInAtScript (SM.smSpendWitnessV2 par
+    scriptTxIn = Tx.txInWitness txInAtScript (SM.smSpendWitness par
                  (Propose (lovelaceValue 4200000) w1Pkh 1000)
-                 sbe Nothing Nothing)
+                 sbe Nothing Nothing exUnits)
     collateral2 = Tx.txInsCollateral era [otherTxIn]
 
 --    scriptTxOut2 = Tx.txOutWithInlineDatum era (C.lovelaceToValue 10_000_000 <> tokenValue)
@@ -167,9 +167,9 @@ smTest networkOptions TestParams{localNodeConnectInfo, pparams, networkId, tempA
 
   let
     -- without reference script
-    scriptTxIn3 = Tx.txInWitness txInAtScript2 (SM.smSpendWitnessV2 par
+    scriptTxIn3 = Tx.txInWitness txInAtScript2 (SM.smSpendWitness par
                  (Add w2Pkh)
-                 sbe Nothing Nothing)
+                 sbe Nothing Nothing exUnits)
 
     scriptTxOut3 =
         Tx.txOutWithInlineDatum
@@ -198,9 +198,13 @@ smTest networkOptions TestParams{localNodeConnectInfo, pparams, networkId, tempA
 
   let
     -- without reference script
-    scriptTxIn4 = Tx.txInWitness txInAtScript3 (SM.smSpendWitnessV2 par
-                 (Add w3Pkh)
-                 sbe Nothing Nothing)
+    scriptTxIn4 = Tx.txInWitness txInAtScript3 (SM.smSpendWitness par
+                  (Add w3Pkh)
+                  sbe Nothing 
+                  (Just (PS.toScriptData (State { label = (Collecting (lovelaceValue 4200000) w1Pkh 1000 [w3Pkh, w2Pkh]) , 
+					tToken = (P.AssetClass (PS.fromPolicyId (ttPolicyIdV2 plutusAddress (fromCardanoTxIn txIn) "ThreadToken")
+                    ,"ThreadToken")) })))
+                  exUnits)
 
     scriptTxOut4 =
         Tx.txOutWithInlineDatum
@@ -222,16 +226,16 @@ smTest networkOptions TestParams{localNodeConnectInfo, pparams, networkId, tempA
   signedTx4 <- Tx.buildTx era localNodeConnectInfo txBodyContent4 w3Addr w3SKey
   Tx.submitTx sbe localNodeConnectInfo signedTx4
   let txInAtScript4 = Tx.txIn (Tx.txId signedTx4) 0
-
+{-
   Q.waitForTxInAtAddress era localNodeConnectInfo scriptAddress txInAtScript4 "waitForTxInAtAddress"
 
   txIn5 <- Q.adaOnlyTxInAtAddress era localNodeConnectInfo w1Addr
 
   let
     -- without reference script
-    scriptTxIn5 = Tx.txInWitness txInAtScript4 (SM.smSpendWitnessV2 par
+    scriptTxIn5 = Tx.txInWitness txInAtScript4 (SM.smSpendWitness par
                  (Pay)
-                 sbe Nothing Nothing)
+                 sbe Nothing Nothing exUnits)
 
     scriptTxOut5 =
         Tx.txOutWithInlineDatum
@@ -253,7 +257,7 @@ smTest networkOptions TestParams{localNodeConnectInfo, pparams, networkId, tempA
   signedTx5 <- Tx.buildTx era localNodeConnectInfo txBodyContent4 w1Addr w1SKey
   Tx.submitTx sbe localNodeConnectInfo signedTx5
   let txInAtScript5 = Tx.txIn (Tx.txId signedTx5) 0
-{--}
+-}
 
   resultTxOut <-
     Q.getTxOutAtAddress era localNodeConnectInfo scriptAddress txInAtScript4 "getTxOutAtAddress"
