@@ -98,7 +98,7 @@ smTest networkOptions TestParams{localNodeConnectInfo, pparams, networkId, tempA
         C.BabbageEra -> makeAddress (Right (SM.smSpendScriptHashV2 par)) networkId
         C.ConwayEra -> error "Conway era is unsupported in this test"
 
-  let exUnits = C.ExecutionUnits{C.executionSteps = 1_000_000_000, C.executionMemory = 10_000_000}
+  let exUnits = C.ExecutionUnits{C.executionSteps = 1_000_000_000, C.executionMemory = 100_000_000}
       plutusAddress = TC.toPlutusAddress (shelleyAddressInEra sbe scriptAddress)
       tokenValue = C.valueFromList [((SM.ttAssetIdV2 plutusAddress (fromCardanoTxIn txIn) "ThreadToken"), 1)]
       mintWitness = Map.fromList [SM.ttMintWitness plutusAddress (fromCardanoTxIn txIn) "ThreadToken" sbe exUnits]
@@ -191,7 +191,40 @@ smTest networkOptions TestParams{localNodeConnectInfo, pparams, networkId, tempA
   signedTx3 <- Tx.buildTx era localNodeConnectInfo txBodyContent3 w2Addr w2SKey
   Tx.submitTx sbe localNodeConnectInfo signedTx3
   let txInAtScript3 = Tx.txIn (Tx.txId signedTx3) 0
+  
+  Q.waitForTxInAtAddress era localNodeConnectInfo scriptAddress txInAtScript3 "waitForTxInAtAddress"
 
+
+  txIn4 <- Q.adaOnlyTxInAtAddress era localNodeConnectInfo w3Addr
+
+  let
+    collateral3 = Tx.txInsCollateral era [txIn4]
+    -- without reference script
+    scriptTxIn4 = Tx.txInWitness txInAtScript3 (SM.smSpendWitness par
+                 (Add w3Pkh)
+                 sbe Nothing Nothing exUnits)
+
+    scriptTxOut4 =
+        Tx.txOutWithInlineDatum
+          era
+          (C.lovelaceToValue 10_000_000 <> tokenValue)
+          scriptAddress
+          (PS.toScriptData (State { label = (Collecting (lovelaceValue 4200000) w1Pkh 1000 [w3Pkh, w2Pkh]) , 
+            tToken = (P.AssetClass (PS.fromPolicyId (ttPolicyIdV2 plutusAddress (fromCardanoTxIn txIn) "ThreadToken")
+                     ,"ThreadToken")) }))
+
+    txBodyContent4 =
+      (Tx.emptyTxBodyContent sbe pparams)
+        { C.txIns = [scriptTxIn4] ++ (Tx.pubkeyTxIns [txIn4])
+        , C.txInsCollateral = collateral3
+        , C.txOuts = [scriptTxOut4]
+        , C.txExtraKeyWits = Tx.txExtraKeyWits era [w3VKey]
+        }
+
+  signedTx4 <- Tx.buildTx era localNodeConnectInfo txBodyContent4 w3Addr w3SKey
+  Tx.submitTx sbe localNodeConnectInfo signedTx4
+  let txInAtScript4 = Tx.txIn (Tx.txId signedTx4) 0
+{-
   Q.waitForTxInAtAddress era localNodeConnectInfo scriptAddress txInAtScript3 "waitForTxInAtAddress"
 
   txIn4 <- Q.adaOnlyTxInAtAddress era localNodeConnectInfo w3Addr
@@ -226,7 +259,7 @@ smTest networkOptions TestParams{localNodeConnectInfo, pparams, networkId, tempA
   signedTx4 <- Tx.buildTx era localNodeConnectInfo txBodyContent4 w3Addr w3SKey
   Tx.submitTx sbe localNodeConnectInfo signedTx4
   let txInAtScript4 = Tx.txIn (Tx.txId signedTx4) 0
-{-
+
   Q.waitForTxInAtAddress era localNodeConnectInfo scriptAddress txInAtScript4 "waitForTxInAtAddress"
 
   txIn5 <- Q.adaOnlyTxInAtAddress era localNodeConnectInfo w1Addr

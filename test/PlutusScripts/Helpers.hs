@@ -30,7 +30,7 @@ bytesFromHex = P.bytes . fromEither . P.fromHex
  Useful when exunits are automatically balanced.
 -}
 defExecutionUnits :: C.ExecutionUnits
-defExecutionUnits = C.ExecutionUnits{C.executionSteps = 0, C.executionMemory = 0} -- !!
+defExecutionUnits = C.ExecutionUnits{C.executionSteps = 1000000000, C.executionMemory = 1000000000} -- !!
 
 -- | Any data to ScriptData. Used for script datum and redeemer.
 toScriptData :: (PlutusTx.ToData a) => a -> C.HashableScriptData

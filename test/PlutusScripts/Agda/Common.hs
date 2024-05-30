@@ -219,7 +219,7 @@ agdaValidator param oldLabel red ctx =
     Collecting v pkh d sigs -> case red of
       Propose _ _ _ -> False
       Add sig -> 
-        (traceIfFalse "surely not" (checkSigned sig ctx)
+          (  traceIfFalse "surely not" (checkSigned sig ctx)
           && traceIfFalse "here??" (query sig (authSigs param))
           && case newLabel ctx of
             Holding -> False
