@@ -171,18 +171,16 @@ ownOutput ctx = case getContinuingOutputs ctx of
   _ -> traceError "expected exactly one SM output"
 
 {-# INLINEABLE smDatum #-}
-smDatum :: Maybe Datum -> Maybe State
-smDatum md = do
-  Datum d <- md
-  P.fromBuiltinData d
+smDatum :: Maybe Datum -> State
+smDatum md = case md of
+    Nothing -> traceError "no datum"
+    Just (Datum d) -> P.unsafeFromBuiltinData d
 
 {-# INLINEABLE outputDatum #-}
 outputDatum :: ScriptContext -> State
 outputDatum ctx = case txOutDatum (ownOutput ctx) of
   NoOutputDatum -> traceError "nt"
-  OutputDatumHash dh -> case smDatum $ findDatum dh (scriptContextTxInfo ctx) of
-    Nothing -> traceError "hs"
-    Just d -> d
+  OutputDatumHash dh -> smDatum $ findDatum dh (scriptContextTxInfo ctx) 
   OutputDatum d -> P.unsafeFromBuiltinData (getDatum d)
 
 {-# INLINEABLE newLabel #-}
@@ -323,11 +321,10 @@ mkPolicy addr oref tn () ctx = traceIfFalse "UTxO not consumed" hasUTxO
     checkDatum = case txOutDatum scriptOutput of
       NoOutputDatum -> traceError "nd"
       OutputDatumHash dh -> case smDatum $ findDatum dh info of
-        Nothing -> traceError "nh"
-        Just d -> tToken d == AssetClass (cs, tn) && label d == Holding
-      OutputDatum dat -> case P.fromBuiltinData @State (getDatum dat) of
-        Just d -> tToken d == AssetClass (cs, tn) && label d == Holding --tToken d == AssetClass (cs, tn) && label d == Holding
-        _ -> traceError "dn"
+        d -> tToken d == AssetClass (cs, tn) && label d == Holding
+      OutputDatum dat -> case P.unsafeFromBuiltinData @State (getDatum dat) of
+        d -> tToken d == AssetClass (cs, tn) && label d == Holding --tToken d == AssetClass (cs, tn) && label d == Holding
+
 
 --traceError (show (P.fromBuiltinData @State (getDatum dat)))
 
