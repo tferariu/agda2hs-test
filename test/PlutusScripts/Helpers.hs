@@ -213,45 +213,50 @@ spendScriptWitness'
   -> C.ExecutionUnits
   -> C.ScriptWitness C.WitCtxTxIn era
 -- V1 script
-spendScriptWitness' era lang@(C.PlutusScriptLanguage C.PlutusScriptV1) (Left script) datumWit redeemer = do
+spendScriptWitness' era lang@(C.PlutusScriptLanguage C.PlutusScriptV1) (Left script) datumWit redeemer exunits = do
   C.PlutusScriptWitness
     (maybeScriptWitness era lang $ C.scriptLanguageSupportedInEra era lang)
     C.PlutusScriptV1
     (C.PScript script)
     datumWit
     redeemer
+	exunits
 -- V2 script
-spendScriptWitness' era lang@(C.PlutusScriptLanguage C.PlutusScriptV2) (Left script) datumWit redeemer = do
+spendScriptWitness' era lang@(C.PlutusScriptLanguage C.PlutusScriptV2) (Left script) datumWit redeemer exunits = do
   C.PlutusScriptWitness
     (maybeScriptWitness era lang $ C.scriptLanguageSupportedInEra era lang)
     C.PlutusScriptV2
     (C.PScript script)
     datumWit
     redeemer
+	exunits
 -- V2 reference script
-spendScriptWitness' era lang@(C.PlutusScriptLanguage C.PlutusScriptV2) (Right refTxIn) datumWit redeemer = do
+spendScriptWitness' era lang@(C.PlutusScriptLanguage C.PlutusScriptV2) (Right refTxIn) datumWit redeemer exunits = do
   C.PlutusScriptWitness
     (maybeScriptWitness era lang $ C.scriptLanguageSupportedInEra era lang)
     C.PlutusScriptV2
     (C.PReferenceScript refTxIn Nothing)
     datumWit
     redeemer
+	exunits
 -- V3 script
-spendScriptWitness' era lang@(C.PlutusScriptLanguage C.PlutusScriptV3) (Left script) datumWit redeemer = do
+spendScriptWitness' era lang@(C.PlutusScriptLanguage C.PlutusScriptV3) (Left script) datumWit redeemer exunits = do
   C.PlutusScriptWitness
     (maybeScriptWitness era lang $ C.scriptLanguageSupportedInEra era lang)
     C.PlutusScriptV3
     (C.PScript script)
     datumWit
     redeemer
+	exunits
 -- V3 reference script
-spendScriptWitness' era lang@(C.PlutusScriptLanguage C.PlutusScriptV3) (Right refTxIn) datumWit redeemer = do
+spendScriptWitness' era lang@(C.PlutusScriptLanguage C.PlutusScriptV3) (Right refTxIn) datumWit redeemer exunits = do
   C.PlutusScriptWitness
     (maybeScriptWitness era lang $ C.scriptLanguageSupportedInEra era lang)
     C.PlutusScriptV3
     (C.PReferenceScript refTxIn Nothing)
     datumWit
     redeemer
+	exunits
 
 -- | Produce ScriptLanguageInEra. Throw error when era doesn't support the script language.
 maybeScriptWitness

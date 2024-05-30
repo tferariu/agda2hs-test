@@ -83,6 +83,8 @@ smTest networkOptions TestParams{localNodeConnectInfo, pparams, networkId, tempA
 
   -- build a transaction to hold inline datum at script address
   txIn <- Q.adaOnlyTxInAtAddress era localNodeConnectInfo w2Addr
+  --txIn' <- Q.adaOnlyTxInAtAddress era localNodeConnectInfo w2Addr
+  --txIn'' <- Q.adaOnlyTxInAtAddress era localNodeConnectInfo w3Addr
 
 --  txIn2 <- Q.adaOnlyTxInAtAddress era localNodeConnectInfo w3Addr
 
@@ -112,20 +114,24 @@ smTest networkOptions TestParams{localNodeConnectInfo, pparams, networkId, tempA
           (PS.toScriptData (State { label = Holding , 
             tToken = (P.AssetClass (PS.fromPolicyId (ttPolicyIdV2 plutusAddress (fromCardanoTxIn txIn) "ThreadToken")
                      ,"ThreadToken")) }))
-      otherTxOut = Tx.txOut era (C.lovelaceToValue 5_000_000) w2Addr
+      otherTxOut1 = Tx.txOut era (C.lovelaceToValue 5_000_000) w1Addr
+      otherTxOut2 = Tx.txOut era (C.lovelaceToValue 5_000_000) w2Addr
+      otherTxOut3 = Tx.txOut era (C.lovelaceToValue 5_000_000) w3Addr
 
       txBodyContent =
         (Tx.emptyTxBodyContent sbe pparams)
           { C.txIns = Tx.pubkeyTxIns [txIn]
           , C.txInsCollateral = collateral
           , C.txMintValue = Tx.txMintValue era tokenValue mintWitness
-          , C.txOuts = [scriptTxOut, otherTxOut]
+          , C.txOuts = [scriptTxOut, otherTxOut1, otherTxOut2, otherTxOut3]
           }
 
   signedTx <- Tx.buildTx era localNodeConnectInfo txBodyContent w2Addr w2SKey
   Tx.submitTx sbe localNodeConnectInfo signedTx
   let txInAtScript = Tx.txIn (Tx.txId signedTx) 0
-      otherTxIn = Tx.txIn (Tx.txId signedTx) 1
+      otherTxIn1 = Tx.txIn (Tx.txId signedTx) 1
+      otherTxIn2 = Tx.txIn (Tx.txId signedTx) 2
+      otherTxIn3 = Tx.txIn (Tx.txId signedTx) 3
   Q.waitForTxInAtAddress era localNodeConnectInfo scriptAddress txInAtScript "waitForTxInAtAddress"
 
 -- build a transaction to mint token using reference script
@@ -137,7 +143,7 @@ smTest networkOptions TestParams{localNodeConnectInfo, pparams, networkId, tempA
     scriptTxIn = Tx.txInWitness txInAtScript (SM.smSpendWitness par
                  (Propose (lovelaceValue 4200000) w1Pkh 1000)
                  sbe Nothing Nothing exUnits)
-    collateral2 = Tx.txInsCollateral era [otherTxIn]
+    collateral2 = Tx.txInsCollateral era [otherTxIn2]
 
 --    scriptTxOut2 = Tx.txOutWithInlineDatum era (C.lovelaceToValue 10_000_000 <> tokenValue)
 --                   scriptAddress (PS.toScriptData (Collecting (lovelaceValue 4200000) w1Pkh 1000 []))
@@ -198,7 +204,7 @@ smTest networkOptions TestParams{localNodeConnectInfo, pparams, networkId, tempA
   txIn4 <- Q.adaOnlyTxInAtAddress era localNodeConnectInfo w3Addr
 
   let
-    collateral3 = Tx.txInsCollateral era [txIn4]
+    collateral3 = Tx.txInsCollateral era [otherTxIn3] --Tx.txInsCollateral era [txIn4]
     -- without reference script
     scriptTxIn4 = Tx.txInWitness txInAtScript3 (SM.smSpendWitness par
                  (Add w3Pkh)
