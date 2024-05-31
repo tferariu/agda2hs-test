@@ -212,7 +212,7 @@ checkPayment pkh v info = case filter (\i -> (txOutAddress i == (pubKeyHashAddre
 
 {-# INLINEABLE agdaValidator #-}
 agdaValidator :: Params -> Label -> Input -> ScriptContext -> Bool
-agdaValidator param oldLabel red ctx =
+agdaValidator param oldLabel red ctx = 
   case oldLabel of
     Collecting v pkh d sigs -> case red of
       Propose _ _ _ -> False
@@ -225,7 +225,7 @@ agdaValidator param oldLabel red ctx =
                  traceIfFalse "value?" (v == v')
               && traceIfFalse "target?" (pkh == pkh')
               && traceIfFalse "deadline?" (d == d')
-              && traceIfFalse (show sigs' <> ": :" <> show sigs <> ": :" <> show sig) (sigs' == insert sig sigs))
+              && traceIfFalse "sigs?" (sigs' == insert sig sigs)) 
       Pay ->
         count sigs
           >= nr param
@@ -241,7 +241,7 @@ agdaValidator param oldLabel red ctx =
             Collecting _ _ _ _ -> False
       Cancel -> case newLabel ctx of
         Holding -> expired d (scriptContextTxInfo ctx)
-        Collecting _ _ _ _ -> False
+        Collecting _ _ _ _ -> False 
     Holding -> case red of
       Propose v pkh d ->
         geq (oldValue ctx) v
@@ -264,9 +264,51 @@ agdaValidator param oldLabel red ctx =
 {-# INLINEABLE mkValidator #-}
 mkValidator :: Params -> State -> Input -> ScriptContext -> Bool
 mkValidator param st red ctx = 
-  traceIfFalse "token missing from input" (getVal (ownInput ctx) (tToken st) == 1)
+       traceIfFalse "token missing from input" (getVal (ownInput ctx) (tToken st) == 1)
     && traceIfFalse "token missing from output" (getVal (ownOutput ctx) (tToken st) == 1)
     && traceIfFalse "failed Validation" (agdaValidator param (label st) red ctx)
+
+
+
+{-# INLINEABLE countOutput #-}
+countOutput :: ScriptContext -> TxOut
+countOutput ctx = case getContinuingOutputs ctx of
+  [o] -> o
+  _ -> traceError "expected exactly one SM output"
+
+{-# INLINEABLE cDatum #-}
+cDatum :: Maybe Datum -> [Integer]
+cDatum md = case md of
+    Nothing -> traceError "no datum"
+    Just (Datum d) -> P.unsafeFromBuiltinData d
+
+{-# INLINEABLE countDatum #-}
+countDatum :: ScriptContext -> [Integer]
+countDatum ctx = case txOutDatum (countOutput ctx) of
+  NoOutputDatum -> traceError "nt"
+  OutputDatumHash dh -> cDatum $ findDatum dh (scriptContextTxInfo ctx) 
+  OutputDatum d -> P.unsafeFromBuiltinData (getDatum d)
+
+
+{-# INLINEABLE weirdInsert #-}
+weirdInsert :: Integer -> [Integer] -> [Integer]
+weirdInsert i [] = [i]
+weirdInsert i (x:xs) = if i == x then (x:xs)
+                        else (x:(weirdInsert i xs))
+
+{-# INLINEABLE mlcValidator #-}
+mlcValidator :: [Integer] -> Integer -> ScriptContext -> Bool
+mlcValidator dat red ctx = 
+    traceIfFalse "failed Validation" (checkCount)
+  where
+    checkCount ::Bool
+    checkCount = weirdInsert red dat == countDatum ctx
+
+{-# INLINEABLE memValidator #-}
+memValidator :: () -> [PubKeyHash] -> ScriptContext -> Bool
+memValidator () red ctx = 
+    traceIfFalse (show red) True
+
 
 {-
 {-# INLINEABLE mkSmValidator #-}

@@ -458,7 +458,7 @@ w5All
   -> m (C.SigningKey C.PaymentKey, C.VerificationKey C.PaymentKey, C.Address C.ShelleyAddr)
 w5All tempAbsPath networkId = do
   let w5VKeyFile = C.File $ tempAbsPath </> "utxo-keys/utxo5/utxo.vkey"
-      w5SKeyFile = C.File $ tempAbsPath </> "utxo-keys/utxo/utxo.skey"
+      w5SKeyFile = C.File $ tempAbsPath </> "utxo-keys/utxo5/utxo.skey"
   -- GenesisUTxOKey comes from cardano-testnet
   mGenesisVKey :: Maybe (C.VerificationKey C.GenesisUTxOKey) <-
     maybeReadAs (C.AsVerificationKey C.AsGenesisUTxOKey) w5VKeyFile

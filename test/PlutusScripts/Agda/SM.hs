@@ -47,6 +47,69 @@ import Helpers.ScriptUtils
 import PlutusCore.Core qualified as PLC
 import PlutusScripts.Agda.Common
 
+
+--MEM Validator
+
+mValidator :: SerialisedScript
+mValidator =
+  serialiseCompiledCode 
+    $$(PlutusTx.compile [||mkUntypedValidator @PlutusV2.ScriptContext (memValidator)||])
+
+
+mSpendScriptV2 :: C.PlutusScript C.PlutusScriptV2
+mSpendScriptV2 = C.PlutusScriptSerialised (mValidator)
+
+mSpendScriptHashV2 :: C.ScriptHash
+mSpendScriptHashV2 = C.hashScript $ unPlutusScriptV2 (mSpendScriptV2)
+
+mSpendWitness
+  :: [PlutusV2.PubKeyHash]
+  -> C.ShelleyBasedEra era
+  -> Maybe C.TxIn
+  -> Maybe C.HashableScriptData
+  -> C.ExecutionUnits
+  -> C.Witness C.WitCtxTxIn era
+mSpendWitness input era mRefScript mDatum exunits =
+  C.ScriptWitness C.ScriptWitnessForSpending $
+    spendScriptWitness'
+      era
+      plutusL2
+      (maybe (Left (mSpendScriptV2)) (\refScript -> Right refScript) mRefScript) -- script or reference script
+      (maybe C.InlineScriptDatum (\datum -> C.ScriptDatumForTxIn datum) mDatum) -- inline datum or datum value
+      (toScriptData input) -- redeemer
+      exunits
+-- SM validator
+
+--LC Validator
+
+lcValidator :: SerialisedScript
+lcValidator =
+  serialiseCompiledCode 
+    $$(PlutusTx.compile [||mkUntypedValidator @PlutusV2.ScriptContext (mlcValidator)||])
+
+
+lcSpendScriptV2 :: C.PlutusScript C.PlutusScriptV2
+lcSpendScriptV2 = C.PlutusScriptSerialised (lcValidator)
+
+lcSpendScriptHashV2 :: C.ScriptHash
+lcSpendScriptHashV2 = C.hashScript $ unPlutusScriptV2 (lcSpendScriptV2)
+
+lcSpendWitness
+  :: Integer
+  -> C.ShelleyBasedEra era
+  -> Maybe C.TxIn
+  -> Maybe C.HashableScriptData
+  -> C.ExecutionUnits
+  -> C.Witness C.WitCtxTxIn era
+lcSpendWitness input era mRefScript mDatum exunits =
+  C.ScriptWitness C.ScriptWitnessForSpending $
+    spendScriptWitness'
+      era
+      plutusL2
+      (maybe (Left (lcSpendScriptV2)) (\refScript -> Right refScript) mRefScript) -- script or reference script
+      (maybe C.InlineScriptDatum (\datum -> C.ScriptDatumForTxIn datum) mDatum) -- inline datum or datum value
+      (toScriptData input) -- redeemer
+      exunits
 -- SM validator
 
 {--}

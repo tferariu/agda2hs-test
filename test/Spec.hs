@@ -92,7 +92,9 @@ agdaTests resultsRef = integrationRetryWorkspace 0 "pv8" $ \tempAbsPath -> do
 
   -- checkTxInfo tests must be first to run after new testnet is initialised due to expected slot to posix time
   sequence_
-    [ run Agda.smTestInfo
+    [ run Agda.memTestInfo
+    --, run Agda.smTestInfo
+    --, run Agda.countTestInfo
   --  , run Babbage.referenceInputWithV1ScriptErrorTestInfo
   --  , run Babbage.referenceScriptOutputWithV1ScriptErrorTestInfo
   --  , run Babbage.inlineDatumOutputWithV1ScriptErrorTestInfo

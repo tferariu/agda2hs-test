@@ -30,7 +30,7 @@ bytesFromHex = P.bytes . fromEither . P.fromHex
  Useful when exunits are automatically balanced.
 -}
 defExecutionUnits :: C.ExecutionUnits
-defExecutionUnits = C.ExecutionUnits{C.executionSteps = 1000000000, C.executionMemory = 1000000000} -- !!
+defExecutionUnits = C.ExecutionUnits{C.executionSteps = 0, C.executionMemory = 0} -- !!
 
 -- | Any data to ScriptData. Used for script datum and redeemer.
 toScriptData :: (PlutusTx.ToData a) => a -> C.HashableScriptData
@@ -220,7 +220,7 @@ spendScriptWitness' era lang@(C.PlutusScriptLanguage C.PlutusScriptV1) (Left scr
     (C.PScript script)
     datumWit
     redeemer
-	exunits
+    exunits
 -- V2 script
 spendScriptWitness' era lang@(C.PlutusScriptLanguage C.PlutusScriptV2) (Left script) datumWit redeemer exunits = do
   C.PlutusScriptWitness
@@ -229,7 +229,7 @@ spendScriptWitness' era lang@(C.PlutusScriptLanguage C.PlutusScriptV2) (Left scr
     (C.PScript script)
     datumWit
     redeemer
-	exunits
+    exunits
 -- V2 reference script
 spendScriptWitness' era lang@(C.PlutusScriptLanguage C.PlutusScriptV2) (Right refTxIn) datumWit redeemer exunits = do
   C.PlutusScriptWitness
@@ -238,7 +238,7 @@ spendScriptWitness' era lang@(C.PlutusScriptLanguage C.PlutusScriptV2) (Right re
     (C.PReferenceScript refTxIn Nothing)
     datumWit
     redeemer
-	exunits
+    exunits
 -- V3 script
 spendScriptWitness' era lang@(C.PlutusScriptLanguage C.PlutusScriptV3) (Left script) datumWit redeemer exunits = do
   C.PlutusScriptWitness
@@ -247,7 +247,7 @@ spendScriptWitness' era lang@(C.PlutusScriptLanguage C.PlutusScriptV3) (Left scr
     (C.PScript script)
     datumWit
     redeemer
-	exunits
+    exunits
 -- V3 reference script
 spendScriptWitness' era lang@(C.PlutusScriptLanguage C.PlutusScriptV3) (Right refTxIn) datumWit redeemer exunits = do
   C.PlutusScriptWitness
@@ -256,7 +256,7 @@ spendScriptWitness' era lang@(C.PlutusScriptLanguage C.PlutusScriptV3) (Right re
     (C.PReferenceScript refTxIn Nothing)
     datumWit
     redeemer
-	exunits
+    exunits
 
 -- | Produce ScriptLanguageInEra. Throw error when era doesn't support the script language.
 maybeScriptWitness
