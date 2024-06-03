@@ -78,7 +78,6 @@ mSpendWitness input era mRefScript mDatum exunits =
       (maybe C.InlineScriptDatum (\datum -> C.ScriptDatumForTxIn datum) mDatum) -- inline datum or datum value
       (toScriptData input) -- redeemer
       exunits
--- SM validator
 
 --LC Validator
 
@@ -110,9 +109,10 @@ lcSpendWitness input era mRefScript mDatum exunits =
       (maybe C.InlineScriptDatum (\datum -> C.ScriptDatumForTxIn datum) mDatum) -- inline datum or datum value
       (toScriptData input) -- redeemer
       exunits
--- SM validator
 
-{--}
+
+--SM Validator
+
 smValidator :: Params -> SerialisedScript
 smValidator param =
   serialiseCompiledCode $
@@ -160,71 +160,48 @@ smSpendWitness par input era mRefScript mDatum exunits =
       (toScriptData input) -- redeemer
       exunits
 
-{-
-spendScriptWitness' era lang@(C.PlutusScriptLanguage C.PlutusScriptV2) (Left script) datumWit redeemer = do
-  C.PlutusScriptWitness
-    (maybeScriptWitness era lang $ C.scriptLanguageSupportedInEra era lang)
-    C.PlutusScriptV2
-    (C.PScript script)
-    datumWit
-    redeemer
-
-ttMintWitness
-  :: PlutusV2.Address
-  -> PlutusV2.TxOutRef
-  -> PlutusV2.TokenName
-  -> C.ShelleyBasedEra era
-  -> C.ExecutionUnits
-  -> (C.PolicyId, C.ScriptWitness C.WitCtxMint era)
-ttMintWitness addr oref tn era exunits =
-  ( policyIdV2 (ttPolicy addr oref tn)
-  , mintScriptWitness' era plutusL2 (Left (ttPolicyScriptV2 addr oref tn)) (toScriptData ()) exunits
-  )-}
 
 
 -- TT policy
-{--}
-ttPolicy :: PlutusV2.Address -> PlutusV2.TxOutRef -> PlutusV2.TokenName -> SerialisedScript
-ttPolicy adr outref tn =
+ttPolicy :: PlutusV2.Address -> PlutusV2.TxOutRef -> SerialisedScript
+ttPolicy adr outref =
   serialiseCompiledCode $
-    $$(PlutusTx.compile [||\a b c -> mkUntypedMintingPolicy @PlutusV2.ScriptContext (mkPolicy a b c)||])
+    $$(PlutusTx.compile [||\a b -> mkUntypedMintingPolicy @PlutusV2.ScriptContext (mkPolicy a b)||])
       `PlutusTx.unsafeApplyCode` PlutusTx.liftCode PLC.plcVersion100 adr
       `PlutusTx.unsafeApplyCode` PlutusTx.liftCode PLC.plcVersion100 outref
-      `PlutusTx.unsafeApplyCode` PlutusTx.liftCode PLC.plcVersion100 tn
 
 ttPolicyScriptV2
-  :: PlutusV2.Address -> PlutusV2.TxOutRef -> PlutusV2.TokenName -> C.PlutusScript C.PlutusScriptV2
-ttPolicyScriptV2 addr oref tn = C.PlutusScriptSerialised (ttPolicy addr oref tn)
+  :: PlutusV2.Address -> PlutusV2.TxOutRef -> C.PlutusScript C.PlutusScriptV2
+ttPolicyScriptV2 addr oref = C.PlutusScriptSerialised (ttPolicy addr oref)
 
-ttPolicyIdV2 :: PlutusV2.Address -> PlutusV2.TxOutRef -> PlutusV2.TokenName -> C.PolicyId
-ttPolicyIdV2 addr oref tn = policyIdV2 (ttPolicy addr oref tn)
+ttPolicyIdV2 :: PlutusV2.Address -> PlutusV2.TxOutRef -> C.PolicyId
+ttPolicyIdV2 addr oref = policyIdV2 (ttPolicy addr oref)
 
-ttPolicyScriptHashV2 :: PlutusV2.Address -> PlutusV2.TxOutRef -> PlutusV2.TokenName -> C.ScriptHash
-ttPolicyScriptHashV2 addr oref tn = C.hashScript $ unPlutusScriptV2 (ttPolicyScriptV2 addr oref tn)
+ttPolicyScriptHashV2 :: PlutusV2.Address -> PlutusV2.TxOutRef -> C.ScriptHash
+ttPolicyScriptHashV2 addr oref = C.hashScript $ unPlutusScriptV2 (ttPolicyScriptV2 addr oref)
 
-ttAssetIdV2 :: PlutusV2.Address -> PlutusV2.TxOutRef -> PlutusV2.TokenName -> C.AssetId
-ttAssetIdV2 addr oref tn = C.AssetId (ttPolicyIdV2 addr oref tn) "ThreadToken"
+ttAssetIdV2 :: PlutusV2.Address -> PlutusV2.TxOutRef -> C.AssetId
+ttAssetIdV2 addr oref = C.AssetId (ttPolicyIdV2 addr oref) "ThreadToken"
 
 ttPolicyTxInfoRedeemerV2
-  :: PlutusV2.Address -> PlutusV2.TxOutRef -> PlutusV2.TokenName -> PlutusV2.Map ScriptPurpose Redeemer
-ttPolicyTxInfoRedeemerV2 addr oref tn =
+  :: PlutusV2.Address -> PlutusV2.TxOutRef -> PlutusV2.Map ScriptPurpose Redeemer
+ttPolicyTxInfoRedeemerV2 addr oref =
   AMap.singleton
-    (Minting $ fromPolicyId (ttPolicyIdV2 addr oref tn))
+    (Minting $ fromPolicyId (ttPolicyIdV2 addr oref))
     (asRedeemer $ PlutusTx.toBuiltinData ())
 
 ttMintWitnessV2
   :: PlutusV2.Address
   -> PlutusV2.TxOutRef
-  -> PlutusV2.TokenName
   -> C.ShelleyBasedEra era
   -> Maybe C.TxIn -- maybe reference input
   -> (C.PolicyId, C.ScriptWitness C.WitCtxMint era)
-ttMintWitnessV2 addr oref tn era Nothing =
-  ( policyIdV2 (ttPolicy addr oref tn)
-  , mintScriptWitness era plutusL2 (Left (ttPolicyScriptV2 addr oref tn)) (toScriptData ())
+ttMintWitnessV2 addr oref era Nothing =
+  ( policyIdV2 (ttPolicy addr oref)
+  , mintScriptWitness era plutusL2 (Left (ttPolicyScriptV2 addr oref)) (toScriptData ())
   )
-ttMintWitnessV2 addr oref tn era (Just refTxIn) =
-  ( policyIdV2 (ttPolicy addr oref tn)
+ttMintWitnessV2 addr oref era (Just refTxIn) =
+  ( policyIdV2 (ttPolicy addr oref)
   , mintScriptWitness era plutusL2 (Right refTxIn) (toScriptData ())
   )
 
@@ -232,17 +209,13 @@ ttMintWitnessV2 addr oref tn era (Just refTxIn) =
 ttMintWitness
   :: PlutusV2.Address
   -> PlutusV2.TxOutRef
-  -> PlutusV2.TokenName
   -> C.ShelleyBasedEra era
   -> C.ExecutionUnits
   -> (C.PolicyId, C.ScriptWitness C.WitCtxMint era)
-ttMintWitness addr oref tn era exunits =
-  ( policyIdV2 (ttPolicy addr oref tn)
-  , mintScriptWitness' era plutusL2 (Left (ttPolicyScriptV2 addr oref tn)) (toScriptData ()) exunits
+ttMintWitness addr oref era exunits =
+  ( policyIdV2 (ttPolicy addr oref)
+  , mintScriptWitness' era plutusL2 (Left (ttPolicyScriptV2 addr oref)) (toScriptData ()) exunits
   )
-
-
--- mkPolicy :: Address -> TxOutRef -> TokenName ->  () -> ScriptContext -> Bool
 
 -- AlwaysSucceeds minting policy --
 

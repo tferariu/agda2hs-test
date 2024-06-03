@@ -43,11 +43,13 @@ import PlutusLedgerApi.V2.Contexts (
 import PlutusTx qualified as P
 import PlutusTx.Prelude
 import PlutusTx.Show --qualified as S
---import PlutusTx.Builtins.Class as B
+import PlutusTx.Builtins.Class as B
 --import PlutusTx.Builtins as BI
 --import Data.Text qualified as Text
 
 --import Prelude (Show (..), String)
+
+import Prelude qualified as Haskell
 
 import Helpers.ScriptUtils
 
@@ -240,7 +242,7 @@ agdaValidator param oldLabel red ctx =
                 <> v
             Collecting _ _ _ _ -> False
       Cancel -> case newLabel ctx of
-        Holding -> expired d (scriptContextTxInfo ctx)
+        Holding -> traceIfFalse (show d) (expired d (scriptContextTxInfo ctx)) -- <> P.show (ifFrom (txInfoValidRange (scriptContextTxInfo ctx)))
         Collecting _ _ _ _ -> False 
     Holding -> case red of
       Propose v pkh d ->
@@ -310,38 +312,20 @@ memValidator () red ctx =
     traceIfFalse (show red) True
 
 
-{-
-{-# INLINEABLE mkSmValidator #-}
-mkSmValidator :: P.BuiltinData -> P.BuiltinData -> P.BuiltinData -> ()
-mkSmValidator =
-
-class (PV1.UnsafeFromData sc) => IsScriptContext sc where
-  {-# INLINEABLE mkUntypedValidator #-}
-  mkUntypedValidator
-    :: (PV1.UnsafeFromData d, PV1.UnsafeFromData r)
-    => (d -> r -> sc -> Bool)
-    -> UntypedValidator
-  -- We can use unsafeFromBuiltinData here as we would fail immediately anyway if parsing failed
-  mkUntypedValidator f d r p =
-    P.check $
-      f
-        (tracedUnsafeFrom "Data decoded successfully" d)
-        (tracedUnsafeFrom "Redeemer decoded successfully" r)
-        (tracedUnsafeFrom "Script context decoded successfully" p)-}
-
-
-
 
 -- Thread Token
 {-# INLINEABLE mkPolicy #-}
-mkPolicy :: Address -> TxOutRef -> TokenName -> () -> ScriptContext -> Bool
-mkPolicy addr oref tn () ctx = traceIfFalse "UTxO not consumed" hasUTxO
+mkPolicy :: Address -> TxOutRef -> () -> ScriptContext -> Bool
+mkPolicy addr oref () ctx = traceIfFalse "UTxO not consumed" hasUTxO
     && traceIfFalse "wrong amount minted" checkMintedAmount
     && traceIfFalse "not initial state" checkDatum
 
   where
     info :: TxInfo
     info = scriptContextTxInfo ctx
+
+    tn :: TokenName
+    tn = TokenName "ThreadToken"
 
     cs :: CurrencySymbol
     cs = ownCurrencySymbol ctx
@@ -365,75 +349,5 @@ mkPolicy addr oref tn () ctx = traceIfFalse "UTxO not consumed" hasUTxO
       OutputDatumHash dh -> case smDatum $ findDatum dh info of
         d -> tToken d == AssetClass (cs, tn) && label d == Holding
       OutputDatum dat -> case P.unsafeFromBuiltinData @State (getDatum dat) of
-        d -> tToken d == AssetClass (cs, tn) && label d == Holding --tToken d == AssetClass (cs, tn) && label d == Holding
+        d -> tToken d == AssetClass (cs, tn) && label d == Holding
 
-
---traceError (show (P.fromBuiltinData @State (getDatum dat)))
-
-{-
--- Mint token name policy --
-
-{-# INLINEABLE mkMintTokenNamePolicyV3 #-}
-mkMintTokenNamePolicyV3 :: P.TokenName -> PV3.ScriptContext -> Bool
-mkMintTokenNamePolicyV3 tn ctx = P.traceIfFalse "wrong token name" checkTokenName
-  where
-    info :: PV3.TxInfo
-    info = PV3.scriptContextTxInfo ctx
-
-    -- TODO: Use builtin when available in PV3
-    ownCurrencySymbol :: PV3.ScriptContext -> PV3.CurrencySymbol
-    ownCurrencySymbol PV3.ScriptContext{PV3.scriptContextPurpose = PV3.Minting cs} = cs
-    ownCurrencySymbol _ = P.traceError "Lh"
-
-    checkTokenName :: Bool
-    checkTokenName = P.valueOf (PV3.txInfoMint info) (ownCurrencySymbol ctx) tn P.> 0
-
--- Time range policy --
-
-{-# INLINEABLE mkTimeRangePolicyV3 #-}
-mkTimeRangePolicyV3 :: P.POSIXTime -> PV3.ScriptContext -> Bool
-mkTimeRangePolicyV3 dl ctx = (P.to dl) `P.contains` range
-  where
-    info :: PV3.TxInfo
-    info = PV3.scriptContextTxInfo ctx
-
-    range :: P.POSIXTimeRange
-    range = PV3.txInfoValidRange info
-
--- Witness redeemer policy --
-
-{-# INLINEABLE mkWitnessRedeemerPolicyV3 #-}
-mkWitnessRedeemerPolicyV3 :: P.PubKeyHash -> PV3.ScriptContext -> Bool
-mkWitnessRedeemerPolicyV3 pkh ctx = P.traceIfFalse "not signed by redeemer pubkeyhash" checkWitness
-  where
-    info :: PV3.TxInfo
-    info = PV3.scriptContextTxInfo ctx
-
-    -- TODO: Use builtin when available in PV3
-    txSignedBy :: PV3.TxInfo -> PV3.PubKeyHash -> Bool
-    txSignedBy PV3.TxInfo{PV3.txInfoSignatories} k = case P.find ((P.==) k) txInfoSignatories of
-      P.Just _ -> P.True
-      P.Nothing -> P.False
-
-    checkWitness :: Bool
-    checkWitness = txSignedBy info pkh
-
--- AlwaysSucceeds minting policy --
-
-{-# INLINEABLE mkAlwaysSucceedPolicy #-}
-mkAlwaysSucceedPolicy :: P.BuiltinData -> P.BuiltinData -> ()
-mkAlwaysSucceedPolicy _datum _sc = ()
-
--- AlwaysSucceeds validator --
-
-{-# INLINEABLE mkAlwaysSucceedSpend #-}
-mkAlwaysSucceedSpend :: P.BuiltinData -> P.BuiltinData -> P.BuiltinData -> ()
-mkAlwaysSucceedSpend _datum _redeemer _sc = ()
-
--- AlwaysFails minting policy --
-
-{-# INLINEABLE mkAlwaysFailsPolicy #-}
-mkAlwaysFailsPolicy :: P.BuiltinData -> P.BuiltinData -> ()
-mkAlwaysFailsPolicy _datum _sc = P.check $ P.error ()
-
--}

@@ -27,6 +27,7 @@ import Hedgehog.Extras.Test qualified as HE
 import Hedgehog.Extras.Test.Base qualified as H
 import Helpers.Common (toShelleyBasedEra)
 import Ouroboros.Network.Protocol.LocalStateQuery.Type qualified as O
+import Data.Time.Clock.POSIX qualified as Time
 
 -- | Find the first UTxO at address and return as TxIn. Used for txbody's txIns.
 firstTxIn
@@ -271,6 +272,27 @@ waitForNextEpoch era localNodeConnectInfo debugStr prevEpochNo = go (300 :: Int)
         diff
           | diff > 1 -> error "Current epoch is more than 1 epoch beyond the previous epoch"
           | otherwise -> error "Current epoch is less than the previous epoch"
+
+
+waitForPOSIXTime
+  :: (MonadIO m, MonadTest m)
+  => C.CardanoEra era
+  -> C.LocalNodeConnectInfo
+  -> String -- temp debug text for intermittent timeout failure
+  -> Time.POSIXTime
+  -> m Time.POSIXTime
+waitForPOSIXTime era localNodeConnectInfo debugStr pTime = go (300 :: Int) -- 300 second timeout
+  where
+    go 0 = error $ "waitForSlotNo timeout. \n-- Debug --\nTest function: " ++ debugStr
+    go i = do
+      now <- liftIO Time.getPOSIXTime
+      --currentEpochNo <- getCurrentEpoch era localNodeConnectInfo
+      case now - pTime of
+        diff
+          | diff < 1 -> do
+                      liftIO $ threadDelay 1000000 -- 1s
+                      go (pred i)
+          | diff >= 1 -> return now
 
 waitForNextEpoch_
   :: (MonadIO m, MonadTest m)

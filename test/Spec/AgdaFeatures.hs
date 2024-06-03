@@ -58,57 +58,64 @@ import PlutusScripts.V2TxInfo qualified as PS (
   txInfoSigs,
  )
 
-
-memTestInfo =
+cancelBeforeDeadlineFailTestInfo =
   TestInfo
-    { testName = "memTest"
+    { testName = "cancelBeforeDeadlineFailTest"
     , testDescription =
-        "Force Memory Error"
-    , test = memTest
+        "Can't Cancel before deadline"
+    , test = cancelBeforeDeadlineFailTest
     }
 
-memTest
+
+cancelBeforeDeadlineFailTest
   :: (MonadIO m, MonadTest m)
   => TN.TestEnvironmentOptions era
   -> TestParams era
   -> m (Maybe String)
-memTest networkOptions TestParams{localNodeConnectInfo, pparams, networkId, tempAbsPath} = do
-
+cancelBeforeDeadlineFailTest networkOptions TestParams{localNodeConnectInfo, pparams, networkId, tempAbsPath} = do
   era <- TN.eraFromOptionsM networkOptions
+  startTime <- liftIO Time.getPOSIXTime
+
   (w1SKey, w1VKey, w1Addr) <- TN.w1All tempAbsPath networkId
   (w2SKey, w2VKey, w2Addr) <- TN.w2All tempAbsPath networkId
   (w3SKey, w3VKey, w3Addr) <- TN.w3All tempAbsPath networkId
   let sbe = toShelleyBasedEra era
 
+  txIn <- Q.adaOnlyTxInAtAddress era localNodeConnectInfo w2Addr
+
   let (w1Pkh, w2Pkh, w3Pkh) = (waddrToPkh w1Addr, waddrToPkh w2Addr, waddrToPkh w3Addr)
         where
           waddrToPkh waddr = fromJust (P.toPubKeyHash (TC.toPlutusAddress (shelleyAddressInEra sbe waddr)))
-
-  txIn <- Q.adaOnlyTxInAtAddress era localNodeConnectInfo w2Addr
+  let par = Params{authSigs = [w2Pkh, w3Pkh, w1Pkh], nr = 2}
 
   let scriptAddress = case era of
         C.AlonzoEra -> error "Alonzo era is unsupported in this test"
-        C.BabbageEra -> makeAddress (Right (SM.mSpendScriptHashV2)) networkId
+        C.BabbageEra -> makeAddress (Right (SM.smSpendScriptHashV2 par)) networkId
         C.ConwayEra -> error "Conway era is unsupported in this test"
 
   let exUnits = C.ExecutionUnits{C.executionSteps = 1_000_000_000, C.executionMemory = 100_000_000}
       plutusAddress = TC.toPlutusAddress (shelleyAddressInEra sbe scriptAddress)
-
+      tokenValue = C.valueFromList [((SM.ttAssetIdV2 plutusAddress (fromCardanoTxIn txIn)), 1)]
+      mintWitness = Map.fromList [SM.ttMintWitness plutusAddress (fromCardanoTxIn txIn) sbe exUnits]
+      tt = (P.AssetClass (PS.fromPolicyId (ttPolicyIdV2 plutusAddress (fromCardanoTxIn txIn)),"ThreadToken"))
       collateral = Tx.txInsCollateral era [txIn]
       scriptTxOut =
         Tx.txOutWithInlineDatum
           era
-          (C.lovelaceToValue 10_000_000)
+          (C.lovelaceToValue 10_000_000 <> tokenValue)
           scriptAddress
-          (PS.toScriptData () )
+          (PS.toScriptData (State { label = Holding , tToken = tt }))
       otherTxOut1 = Tx.txOut era (C.lovelaceToValue 5_000_000) w1Addr
       otherTxOut2 = Tx.txOut era (C.lovelaceToValue 5_000_000) w2Addr
       otherTxOut3 = Tx.txOut era (C.lovelaceToValue 5_000_000) w3Addr
+
+
 
       txBodyContent =
         (Tx.emptyTxBodyContent sbe pparams)
           { C.txIns = Tx.pubkeyTxIns [txIn]
           , C.txInsCollateral = collateral
+          , C.txMintValue = Tx.txMintValue era tokenValue mintWitness
           , C.txOuts = [scriptTxOut, otherTxOut1, otherTxOut2, otherTxOut3]
           }
 
@@ -120,20 +127,25 @@ memTest networkOptions TestParams{localNodeConnectInfo, pparams, networkId, temp
       otherTxIn3 = Tx.txIn (Tx.txId signedTx) 3
   Q.waitForTxInAtAddress era localNodeConnectInfo scriptAddress txInAtScript "waitForTxInAtAddress"
 
+-- build a transaction to mint token using reference script
+
   txIn2 <- Q.adaOnlyTxInAtAddress era localNodeConnectInfo w2Addr
 
   let
-    scriptTxIn = Tx.txInWitness txInAtScript (SM.mSpendWitness
-                 [w1Pkh, w2Pkh, w3Pkh]
+    -- without reference script
+    scriptTxIn = Tx.txInWitness txInAtScript (SM.smSpendWitness par
+                 (Propose (lovelaceValue 4200000) w1Pkh (U.posixToMilliseconds startTime + 60_000))
                  sbe Nothing Nothing exUnits)
     collateral2 = Tx.txInsCollateral era [otherTxIn2]
 
     scriptTxOut2 =
         Tx.txOutWithInlineDatum
           era
-          (C.lovelaceToValue 5_000_000)
+          (C.lovelaceToValue 10_000_000 <> tokenValue)
           scriptAddress
-          (PS.toScriptData ())
+          (PS.toScriptData (State { label = (Collecting (lovelaceValue 4200000) w1Pkh 
+                                            (U.posixToMilliseconds startTime + 60_000) []) , 
+            tToken = tt }))
 
     txBodyContent2 =
       (Tx.emptyTxBodyContent sbe pparams)
@@ -148,10 +160,431 @@ memTest networkOptions TestParams{localNodeConnectInfo, pparams, networkId, temp
 
   Q.waitForTxInAtAddress era localNodeConnectInfo scriptAddress txInAtScript2 "waitForTxInAtAddress"
 
+  txIn3 <- Q.adaOnlyTxInAtAddress era localNodeConnectInfo w2Addr
+
+  let
+    -- without reference script
+    scriptTxIn3 = Tx.txInWitness txInAtScript2 (SM.smSpendWitness par
+                 (Cancel)
+                 sbe Nothing Nothing exUnits)
+
+    scriptTxOut3 =
+        Tx.txOutWithInlineDatum
+          era
+          (C.lovelaceToValue 10_000_000 <> tokenValue)
+          scriptAddress
+          (PS.toScriptData (State { label = Holding , tToken = tt }))
+
+    txBodyContent3 =
+      (Tx.emptyTxBodyContent sbe pparams)
+        { C.txIns = [scriptTxIn3] ++ (Tx.pubkeyTxIns [txIn3])
+        , C.txInsCollateral = collateral2
+        , C.txOuts = [scriptTxOut3]
+        , C.txValidityLowerBound = Tx.txValidityLowerBound era 150
+        , C.txValidityUpperBound = Tx.txValidityUpperBound era 300
+          -- \^ ~9min range (200ms slots)
+          -- \^ Babbage era onwards cannot have upper slot beyond epoch boundary (10_000 slot epoch)
+        , C.txExtraKeyWits = Tx.txExtraKeyWits era [w2VKey]
+        }
+
+  eitherTx <-
+      Tx.buildTxWithError
+        era
+        localNodeConnectInfo
+        txBodyContent3
+        w2Addr
+        Nothing
+        [C.WitnessPaymentKey w2SKey]
+  H.annotate $ show eitherTx
+  let expError = "failed Validation"
+  assert expError $ Tx.isTxBodyScriptExecutionError expError eitherTx
+
+
+
+cancelAfterDeadlineTestInfo =
+  TestInfo
+    { testName = "cancelAfterDeadlineTest"
+    , testDescription =
+        "Can Cancel after deadline"
+    , test = cancelAfterDeadlineTest
+    }
+
+cancelAfterDeadlineTest
+  :: (MonadIO m, MonadTest m)
+  => TN.TestEnvironmentOptions era
+  -> TestParams era
+  -> m (Maybe String)
+cancelAfterDeadlineTest networkOptions TestParams{localNodeConnectInfo, pparams, networkId, tempAbsPath} = do
+  era <- TN.eraFromOptionsM networkOptions
+  startTime <- liftIO Time.getPOSIXTime
+
+  (w1SKey, w1VKey, w1Addr) <- TN.w1All tempAbsPath networkId
+  (w2SKey, w2VKey, w2Addr) <- TN.w2All tempAbsPath networkId
+  (w3SKey, w3VKey, w3Addr) <- TN.w3All tempAbsPath networkId
+  let sbe = toShelleyBasedEra era
+
+  txIn <- Q.adaOnlyTxInAtAddress era localNodeConnectInfo w2Addr
+
+  let (w1Pkh, w2Pkh, w3Pkh) = (waddrToPkh w1Addr, waddrToPkh w2Addr, waddrToPkh w3Addr)
+        where
+          waddrToPkh waddr = fromJust (P.toPubKeyHash (TC.toPlutusAddress (shelleyAddressInEra sbe waddr)))
+  let par = Params{authSigs = [w2Pkh, w3Pkh, w1Pkh], nr = 2}
+
+  let scriptAddress = case era of
+        C.AlonzoEra -> error "Alonzo era is unsupported in this test"
+        C.BabbageEra -> makeAddress (Right (SM.smSpendScriptHashV2 par)) networkId
+        C.ConwayEra -> error "Conway era is unsupported in this test"
+
+  let exUnits = C.ExecutionUnits{C.executionSteps = 1_000_000_000, C.executionMemory = 100_000_000}
+      plutusAddress = TC.toPlutusAddress (shelleyAddressInEra sbe scriptAddress)
+      tokenValue = C.valueFromList [((SM.ttAssetIdV2 plutusAddress (fromCardanoTxIn txIn)), 1)]
+      mintWitness = Map.fromList [SM.ttMintWitness plutusAddress (fromCardanoTxIn txIn) sbe exUnits]
+      tt = (P.AssetClass (PS.fromPolicyId (ttPolicyIdV2 plutusAddress (fromCardanoTxIn txIn)),"ThreadToken"))
+      collateral = Tx.txInsCollateral era [txIn]
+      scriptTxOut =
+        Tx.txOutWithInlineDatum
+          era
+          (C.lovelaceToValue 10_000_000 <> tokenValue)
+          scriptAddress
+          (PS.toScriptData (State { label = Holding , tToken = tt }))
+      otherTxOut1 = Tx.txOut era (C.lovelaceToValue 5_000_000) w1Addr
+      otherTxOut2 = Tx.txOut era (C.lovelaceToValue 5_000_000) w2Addr
+      otherTxOut3 = Tx.txOut era (C.lovelaceToValue 5_000_000) w3Addr
+
+
+
+      txBodyContent =
+        (Tx.emptyTxBodyContent sbe pparams)
+          { C.txIns = Tx.pubkeyTxIns [txIn]
+          , C.txInsCollateral = collateral
+          , C.txMintValue = Tx.txMintValue era tokenValue mintWitness
+          , C.txOuts = [scriptTxOut, otherTxOut1, otherTxOut2, otherTxOut3]
+          }
+
+  signedTx <- Tx.buildTx era localNodeConnectInfo txBodyContent w2Addr w2SKey
+  Tx.submitTx sbe localNodeConnectInfo signedTx
+  let txInAtScript = Tx.txIn (Tx.txId signedTx) 0
+      otherTxIn1 = Tx.txIn (Tx.txId signedTx) 1
+      otherTxIn2 = Tx.txIn (Tx.txId signedTx) 2
+      otherTxIn3 = Tx.txIn (Tx.txId signedTx) 3
+  Q.waitForTxInAtAddress era localNodeConnectInfo scriptAddress txInAtScript "waitForTxInAtAddress"
+
+-- build a transaction to mint token using reference script
+
+  txIn2 <- Q.adaOnlyTxInAtAddress era localNodeConnectInfo w2Addr
+
+  let
+    -- without reference script
+    scriptTxIn = Tx.txInWitness txInAtScript (SM.smSpendWitness par
+                 (Propose (lovelaceValue 4200000) w1Pkh ((U.posixToMilliseconds startTime) + 25))
+                 sbe Nothing Nothing exUnits)
+    collateral2 = Tx.txInsCollateral era [otherTxIn2]
+
+    scriptTxOut2 =
+        Tx.txOutWithInlineDatum
+          era
+          (C.lovelaceToValue 10_000_000 <> tokenValue)
+          scriptAddress
+          (PS.toScriptData (State { label = (Collecting (lovelaceValue 4200000) w1Pkh 
+                                            ((U.posixToMilliseconds startTime) + 25) []) , 
+            tToken = tt }))
+
+    txBodyContent2 =
+      (Tx.emptyTxBodyContent sbe pparams)
+        { C.txIns = [scriptTxIn] ++ (Tx.pubkeyTxIns [txIn2])
+        , C.txInsCollateral = collateral2
+        , C.txOuts = [scriptTxOut2]
+        }
+
+  signedTx2 <- Tx.buildTx era localNodeConnectInfo txBodyContent2 w2Addr w2SKey
+  Tx.submitTx sbe localNodeConnectInfo signedTx2
+  let txInAtScript2 = Tx.txIn (Tx.txId signedTx2) 0
+
+  Q.waitForTxInAtAddress era localNodeConnectInfo scriptAddress txInAtScript2 "waitForTxInAtAddress"
+  time <- Q.waitForPOSIXTime era localNodeConnectInfo "Waiting for POSIX" (startTime + 30)
+
+  txIn3 <- Q.adaOnlyTxInAtAddress era localNodeConnectInfo w2Addr
+
+  let
+    -- without reference script
+    scriptTxIn3 = Tx.txInWitness txInAtScript2 (SM.smSpendWitness par
+                 (Cancel)
+                 sbe Nothing Nothing exUnits)
+
+    scriptTxOut3 =
+        Tx.txOutWithInlineDatum
+          era
+          (C.lovelaceToValue 10_000_000 <> tokenValue)
+          scriptAddress
+          (PS.toScriptData (State { label = Holding , tToken = tt }))
+
+    txBodyContent3 =
+      (Tx.emptyTxBodyContent sbe pparams)
+        { C.txIns = [scriptTxIn3] ++ (Tx.pubkeyTxIns [txIn3])
+        , C.txInsCollateral = collateral2
+        , C.txOuts = [scriptTxOut3]
+        , C.txValidityLowerBound = Tx.txValidityLowerBound era 550 --600 good apparently?
+        , C.txValidityUpperBound = Tx.txValidityUpperBound era 8000
+          -- \^ ~9min range (200ms slots)
+          -- \^ Babbage era onwards cannot have upper slot beyond epoch boundary (10_000 slot epoch)
+        , C.txExtraKeyWits = Tx.txExtraKeyWits era [w2VKey]
+        }
+
+  signedTx3 <- Tx.buildTx era localNodeConnectInfo txBodyContent3 w2Addr w2SKey
+  Tx.submitTx sbe localNodeConnectInfo signedTx3
+  let txInAtScript3 = Tx.txIn (Tx.txId signedTx3) 0
+
+  Q.waitForTxInAtAddress era localNodeConnectInfo scriptAddress txInAtScript3 "waitForTxInAtAddress"
+
   resultTxOut <-
-    Q.getTxOutAtAddress era localNodeConnectInfo scriptAddress txInAtScript2 "getTxOutAtAddress"
-  txOutHasAdaValue <- Q.txOutHasValue resultTxOut (C.lovelaceToValue 5_000_000 )
+    Q.getTxOutAtAddress era localNodeConnectInfo scriptAddress txInAtScript3 "getTxOutAtAddress"
+  txOutHasAdaValue <- Q.txOutHasValue resultTxOut (C.lovelaceToValue 10_000_000 <> tokenValue)
   assert "txOut has tokens" txOutHasAdaValue
+
+
+proposeInCollectingFailTestInfo =
+  TestInfo
+    { testName = "proposeInCollectingFailTest"
+    , testDescription =
+        "Can't Propose in Collecting state"
+    , test = proposeInCollectingFailTest
+    }
+
+
+proposeInCollectingFailTest
+  :: (MonadIO m, MonadTest m)
+  => TN.TestEnvironmentOptions era
+  -> TestParams era
+  -> m (Maybe String)
+proposeInCollectingFailTest networkOptions TestParams{localNodeConnectInfo, pparams, networkId, tempAbsPath} = do
+  era <- TN.eraFromOptionsM networkOptions
+  (w1SKey, w1VKey, w1Addr) <- TN.w1All tempAbsPath networkId
+  (w2SKey, w2VKey, w2Addr) <- TN.w2All tempAbsPath networkId
+  (w3SKey, w3VKey, w3Addr) <- TN.w3All tempAbsPath networkId
+  let sbe = toShelleyBasedEra era
+
+  -- build a transaction to hold inline datum at script address
+  txIn <- Q.adaOnlyTxInAtAddress era localNodeConnectInfo w2Addr
+
+
+  let (w1Pkh, w2Pkh, w3Pkh) = (waddrToPkh w1Addr, waddrToPkh w2Addr, waddrToPkh w3Addr)
+        where
+          waddrToPkh waddr = fromJust (P.toPubKeyHash (TC.toPlutusAddress (shelleyAddressInEra sbe waddr)))
+  let par = Params{authSigs = [w2Pkh, w3Pkh], nr = 2}
+
+  let scriptAddress = case era of
+        C.AlonzoEra -> error "Alonzo era is unsupported in this test"
+        C.BabbageEra -> makeAddress (Right (SM.smSpendScriptHashV2 par)) networkId
+        C.ConwayEra -> error "Conway era is unsupported in this test"
+
+  let exUnits = C.ExecutionUnits{C.executionSteps = 1_000_000_000, C.executionMemory = 100_000_000}
+      plutusAddress = TC.toPlutusAddress (shelleyAddressInEra sbe scriptAddress)
+      tokenValue = C.valueFromList [((SM.ttAssetIdV2 plutusAddress (fromCardanoTxIn txIn)), 1)]
+      mintWitness = Map.fromList [SM.ttMintWitness plutusAddress (fromCardanoTxIn txIn) sbe exUnits]
+      tt = (P.AssetClass (PS.fromPolicyId (ttPolicyIdV2 plutusAddress (fromCardanoTxIn txIn)),"ThreadToken"))
+      collateral = Tx.txInsCollateral era [txIn]
+      scriptTxOut =
+        Tx.txOutWithInlineDatum
+          era
+          (C.lovelaceToValue 10_000_000 <> tokenValue)
+          scriptAddress
+          (PS.toScriptData (State { label = Holding , tToken = tt }))
+      otherTxOut1 = Tx.txOut era (C.lovelaceToValue 5_000_000) w1Addr
+      otherTxOut2 = Tx.txOut era (C.lovelaceToValue 5_000_000) w2Addr
+      otherTxOut3 = Tx.txOut era (C.lovelaceToValue 5_000_000) w3Addr
+
+      txBodyContent =
+        (Tx.emptyTxBodyContent sbe pparams)
+          { C.txIns = Tx.pubkeyTxIns [txIn]
+          , C.txInsCollateral = collateral
+          , C.txMintValue = Tx.txMintValue era tokenValue mintWitness
+          , C.txOuts = [scriptTxOut, otherTxOut1, otherTxOut2, otherTxOut3]
+          }
+
+  signedTx <- Tx.buildTx era localNodeConnectInfo txBodyContent w2Addr w2SKey
+  Tx.submitTx sbe localNodeConnectInfo signedTx
+  let txInAtScript = Tx.txIn (Tx.txId signedTx) 0
+      otherTxIn1 = Tx.txIn (Tx.txId signedTx) 1
+      otherTxIn2 = Tx.txIn (Tx.txId signedTx) 2
+      otherTxIn3 = Tx.txIn (Tx.txId signedTx) 3
+  Q.waitForTxInAtAddress era localNodeConnectInfo scriptAddress txInAtScript "waitForTxInAtAddress"
+
+-- build a transaction to mint token using reference script
+
+  txIn2 <- Q.adaOnlyTxInAtAddress era localNodeConnectInfo w2Addr
+
+  let
+    -- without reference script
+    scriptTxIn = Tx.txInWitness txInAtScript (SM.smSpendWitness par
+                 (Propose (lovelaceValue 4200000) w1Pkh 1000)
+                 sbe Nothing Nothing exUnits)
+    collateral2 = Tx.txInsCollateral era [otherTxIn2]
+
+    scriptTxOut2 =
+        Tx.txOutWithInlineDatum
+          era
+          (C.lovelaceToValue 10_000_000 <> tokenValue)
+          scriptAddress
+          (PS.toScriptData (State { label = (Collecting (lovelaceValue 4200000) w1Pkh 1000 []) , 
+            tToken = tt }))
+
+    txBodyContent2 =
+      (Tx.emptyTxBodyContent sbe pparams)
+        { C.txIns = [scriptTxIn] ++ (Tx.pubkeyTxIns [txIn2])
+        , C.txInsCollateral = collateral2
+        , C.txOuts = [scriptTxOut2]
+        }
+
+  signedTx <- Tx.buildTx era localNodeConnectInfo txBodyContent2 w2Addr w2SKey
+  Tx.submitTx sbe localNodeConnectInfo signedTx
+  let txInAtScript = Tx.txIn (Tx.txId signedTx) 0
+      otherTxIn1 = Tx.txIn (Tx.txId signedTx) 1
+      otherTxIn2 = Tx.txIn (Tx.txId signedTx) 2
+      otherTxIn3 = Tx.txIn (Tx.txId signedTx) 3
+  Q.waitForTxInAtAddress era localNodeConnectInfo scriptAddress txInAtScript "waitForTxInAtAddress"
+
+-- build a transaction to mint token using reference script
+
+  txIn2 <- Q.adaOnlyTxInAtAddress era localNodeConnectInfo w2Addr
+
+  let
+    -- without reference script
+    scriptTxIn = Tx.txInWitness txInAtScript (SM.smSpendWitness par
+                 (Propose (lovelaceValue 4200000) w1Pkh 1000)
+                 sbe Nothing Nothing exUnits)
+    collateral2 = Tx.txInsCollateral era [otherTxIn2]
+
+    scriptTxOut2 =
+        Tx.txOutWithInlineDatum
+          era
+          (C.lovelaceToValue 10_000_000 <> tokenValue)
+          scriptAddress
+          (PS.toScriptData (State { label = (Collecting (lovelaceValue 4200000) w1Pkh 1000 []) , 
+            tToken = tt }))
+
+    txBodyContent2 =
+      (Tx.emptyTxBodyContent sbe pparams)
+        { C.txIns = [scriptTxIn] ++ (Tx.pubkeyTxIns [txIn2])
+        , C.txInsCollateral = collateral2
+        , C.txOuts = [scriptTxOut2]
+        }
+
+  eitherTx <-
+      Tx.buildTxWithError
+        era
+        localNodeConnectInfo
+        txBodyContent2
+        w2Addr
+        Nothing
+        [C.WitnessPaymentKey w2SKey]
+  H.annotate $ show eitherTx
+  let expError = "failed Validation"
+  assert expError $ Tx.isTxBodyScriptExecutionError expError eitherTx
+
+
+addInHoldingFailTestInfo =
+  TestInfo
+    { testName = "addInHoldingFailTest"
+    , testDescription =
+        "Can't Add in Holding state"
+    , test = addInHoldingFailTest
+    }
+
+addInHoldingFailTest
+  :: (MonadIO m, MonadTest m)
+  => TN.TestEnvironmentOptions era
+  -> TestParams era
+  -> m (Maybe String)
+addInHoldingFailTest networkOptions TestParams{localNodeConnectInfo, pparams, networkId, tempAbsPath} = do
+  era <- TN.eraFromOptionsM networkOptions
+  (w1SKey, w1VKey, w1Addr) <- TN.w1All tempAbsPath networkId
+  (w2SKey, w2VKey, w2Addr) <- TN.w2All tempAbsPath networkId
+  (w3SKey, w3VKey, w3Addr) <- TN.w3All tempAbsPath networkId
+  let sbe = toShelleyBasedEra era
+
+  -- build a transaction to hold inline datum at script address
+  txIn <- Q.adaOnlyTxInAtAddress era localNodeConnectInfo w2Addr
+
+
+  let (w1Pkh, w2Pkh, w3Pkh) = (waddrToPkh w1Addr, waddrToPkh w2Addr, waddrToPkh w3Addr)
+        where
+          waddrToPkh waddr = fromJust (P.toPubKeyHash (TC.toPlutusAddress (shelleyAddressInEra sbe waddr)))
+  let par = Params{authSigs = [w2Pkh, w3Pkh], nr = 2}
+
+  let scriptAddress = case era of
+        C.AlonzoEra -> error "Alonzo era is unsupported in this test"
+        C.BabbageEra -> makeAddress (Right (SM.smSpendScriptHashV2 par)) networkId
+        C.ConwayEra -> error "Conway era is unsupported in this test"
+
+  let exUnits = C.ExecutionUnits{C.executionSteps = 1_000_000_000, C.executionMemory = 100_000_000}
+      plutusAddress = TC.toPlutusAddress (shelleyAddressInEra sbe scriptAddress)
+      tokenValue = C.valueFromList [((SM.ttAssetIdV2 plutusAddress (fromCardanoTxIn txIn)), 1)]
+      mintWitness = Map.fromList [SM.ttMintWitness plutusAddress (fromCardanoTxIn txIn) sbe exUnits]
+      tt = (P.AssetClass (PS.fromPolicyId (ttPolicyIdV2 plutusAddress (fromCardanoTxIn txIn)),"ThreadToken"))
+      collateral = Tx.txInsCollateral era [txIn]
+      scriptTxOut =
+        Tx.txOutWithInlineDatum
+          era
+          (C.lovelaceToValue 10_000_000 <> tokenValue)
+          scriptAddress
+          (PS.toScriptData (State { label = Holding , tToken = tt }))
+      otherTxOut1 = Tx.txOut era (C.lovelaceToValue 5_000_000) w1Addr
+      otherTxOut2 = Tx.txOut era (C.lovelaceToValue 5_000_000) w2Addr
+      otherTxOut3 = Tx.txOut era (C.lovelaceToValue 5_000_000) w3Addr
+
+      txBodyContent =
+        (Tx.emptyTxBodyContent sbe pparams)
+          { C.txIns = Tx.pubkeyTxIns [txIn]
+          , C.txInsCollateral = collateral
+          , C.txMintValue = Tx.txMintValue era tokenValue mintWitness
+          , C.txOuts = [scriptTxOut, otherTxOut1, otherTxOut2, otherTxOut3]
+          }
+
+  signedTx <- Tx.buildTx era localNodeConnectInfo txBodyContent w2Addr w2SKey
+  Tx.submitTx sbe localNodeConnectInfo signedTx
+  let txInAtScript = Tx.txIn (Tx.txId signedTx) 0
+      otherTxIn1 = Tx.txIn (Tx.txId signedTx) 1
+      otherTxIn2 = Tx.txIn (Tx.txId signedTx) 2
+      otherTxIn3 = Tx.txIn (Tx.txId signedTx) 3
+  Q.waitForTxInAtAddress era localNodeConnectInfo scriptAddress txInAtScript "waitForTxInAtAddress"
+
+-- build a transaction to mint token using reference script
+
+  txIn2 <- Q.adaOnlyTxInAtAddress era localNodeConnectInfo w2Addr
+
+  let
+    -- without reference script
+    scriptTxIn = Tx.txInWitness txInAtScript (SM.smSpendWitness par
+                 (Add w1Pkh)
+                 sbe Nothing Nothing exUnits)
+    collateral2 = Tx.txInsCollateral era [otherTxIn2]
+
+    scriptTxOut2 =
+        Tx.txOutWithInlineDatum
+          era
+          (C.lovelaceToValue 10_000_000 <> tokenValue)
+          scriptAddress
+          (PS.toScriptData (State { label = (Collecting (lovelaceValue 4200000) w1Pkh 1000 [w1Pkh]) , 
+            tToken = tt }))
+
+    txBodyContent2 =
+      (Tx.emptyTxBodyContent sbe pparams)
+        { C.txIns = [scriptTxIn] ++ (Tx.pubkeyTxIns [txIn2])
+        , C.txInsCollateral = collateral2
+        , C.txOuts = [scriptTxOut2]
+        }
+
+  eitherTx <-
+      Tx.buildTxWithError
+        era
+        localNodeConnectInfo
+        txBodyContent2
+        w2Addr
+        Nothing
+        [C.WitnessPaymentKey w2SKey]
+  H.annotate $ show eitherTx
+  let expError = "failed Validation"
+  assert expError $ Tx.isTxBodyScriptExecutionError expError eitherTx
 
 
 
@@ -199,9 +632,9 @@ smTest networkOptions TestParams{localNodeConnectInfo, pparams, networkId, tempA
 
   let exUnits = C.ExecutionUnits{C.executionSteps = 1_000_000_000, C.executionMemory = 100_000_000}
       plutusAddress = TC.toPlutusAddress (shelleyAddressInEra sbe scriptAddress)
-      tokenValue = C.valueFromList [((SM.ttAssetIdV2 plutusAddress (fromCardanoTxIn txIn) "ThreadToken"), 1)]
-      mintWitness = Map.fromList [SM.ttMintWitness plutusAddress (fromCardanoTxIn txIn) "ThreadToken" sbe exUnits]
-      tt = (P.AssetClass (PS.fromPolicyId (ttPolicyIdV2 plutusAddress (fromCardanoTxIn txIn) "ThreadToken"),"ThreadToken"))
+      tokenValue = C.valueFromList [((SM.ttAssetIdV2 plutusAddress (fromCardanoTxIn txIn)), 1)]
+      mintWitness = Map.fromList [SM.ttMintWitness plutusAddress (fromCardanoTxIn txIn) sbe exUnits]
+      tt = (P.AssetClass (PS.fromPolicyId (ttPolicyIdV2 plutusAddress (fromCardanoTxIn txIn)),"ThreadToken"))
       collateral = Tx.txInsCollateral era [txIn]
       scriptTxOut =
         Tx.txOutWithInlineDatum
@@ -503,6 +936,100 @@ smTest networkOptions TestParams{localNodeConnectInfo, pparams, networkId, tempA
   paymentHasAda <- Q.txOutHasValue paymentTxOut (C.lovelaceToValue 4_200_000 )
   assert "payment" paymentHasAda
 
+
+memTestInfo =
+  TestInfo
+    { testName = "memTest"
+    , testDescription =
+        "Force Memory Error"
+    , test = memTest
+    }
+
+memTest
+  :: (MonadIO m, MonadTest m)
+  => TN.TestEnvironmentOptions era
+  -> TestParams era
+  -> m (Maybe String)
+memTest networkOptions TestParams{localNodeConnectInfo, pparams, networkId, tempAbsPath} = do
+
+  era <- TN.eraFromOptionsM networkOptions
+  (w1SKey, w1VKey, w1Addr) <- TN.w1All tempAbsPath networkId
+  (w2SKey, w2VKey, w2Addr) <- TN.w2All tempAbsPath networkId
+  (w3SKey, w3VKey, w3Addr) <- TN.w3All tempAbsPath networkId
+  let sbe = toShelleyBasedEra era
+
+  let (w1Pkh, w2Pkh, w3Pkh) = (waddrToPkh w1Addr, waddrToPkh w2Addr, waddrToPkh w3Addr)
+        where
+          waddrToPkh waddr = fromJust (P.toPubKeyHash (TC.toPlutusAddress (shelleyAddressInEra sbe waddr)))
+
+  txIn <- Q.adaOnlyTxInAtAddress era localNodeConnectInfo w2Addr
+
+  let scriptAddress = case era of
+        C.AlonzoEra -> error "Alonzo era is unsupported in this test"
+        C.BabbageEra -> makeAddress (Right (SM.mSpendScriptHashV2)) networkId
+        C.ConwayEra -> error "Conway era is unsupported in this test"
+
+  let exUnits = C.ExecutionUnits{C.executionSteps = 1_000_000_000, C.executionMemory = 100_000_000}
+      plutusAddress = TC.toPlutusAddress (shelleyAddressInEra sbe scriptAddress)
+
+      collateral = Tx.txInsCollateral era [txIn]
+      scriptTxOut =
+        Tx.txOutWithInlineDatum
+          era
+          (C.lovelaceToValue 10_000_000)
+          scriptAddress
+          (PS.toScriptData () )
+      otherTxOut1 = Tx.txOut era (C.lovelaceToValue 5_000_000) w1Addr
+      otherTxOut2 = Tx.txOut era (C.lovelaceToValue 5_000_000) w2Addr
+      otherTxOut3 = Tx.txOut era (C.lovelaceToValue 5_000_000) w3Addr
+
+      txBodyContent =
+        (Tx.emptyTxBodyContent sbe pparams)
+          { C.txIns = Tx.pubkeyTxIns [txIn]
+          , C.txInsCollateral = collateral
+          , C.txOuts = [scriptTxOut, otherTxOut1, otherTxOut2, otherTxOut3]
+          }
+
+  signedTx <- Tx.buildTx era localNodeConnectInfo txBodyContent w2Addr w2SKey
+  Tx.submitTx sbe localNodeConnectInfo signedTx
+  let txInAtScript = Tx.txIn (Tx.txId signedTx) 0
+      otherTxIn1 = Tx.txIn (Tx.txId signedTx) 1
+      otherTxIn2 = Tx.txIn (Tx.txId signedTx) 2
+      otherTxIn3 = Tx.txIn (Tx.txId signedTx) 3
+  Q.waitForTxInAtAddress era localNodeConnectInfo scriptAddress txInAtScript "waitForTxInAtAddress"
+
+  txIn2 <- Q.adaOnlyTxInAtAddress era localNodeConnectInfo w2Addr
+
+  let
+    scriptTxIn = Tx.txInWitness txInAtScript (SM.mSpendWitness
+                 [w1Pkh, w2Pkh, w3Pkh]
+                 sbe Nothing Nothing exUnits)
+    collateral2 = Tx.txInsCollateral era [otherTxIn2]
+
+    scriptTxOut2 =
+        Tx.txOutWithInlineDatum
+          era
+          (C.lovelaceToValue 5_000_000)
+          scriptAddress
+          (PS.toScriptData ())
+
+    txBodyContent2 =
+      (Tx.emptyTxBodyContent sbe pparams)
+        { C.txIns = [scriptTxIn] ++ (Tx.pubkeyTxIns [txIn2])
+        , C.txInsCollateral = collateral2
+        , C.txOuts = [scriptTxOut2]
+        }
+
+  signedTx2 <- Tx.buildTx era localNodeConnectInfo txBodyContent2 w2Addr w2SKey
+  Tx.submitTx sbe localNodeConnectInfo signedTx2
+  let txInAtScript2 = Tx.txIn (Tx.txId signedTx2) 0
+
+  Q.waitForTxInAtAddress era localNodeConnectInfo scriptAddress txInAtScript2 "waitForTxInAtAddress"
+
+  resultTxOut <-
+    Q.getTxOutAtAddress era localNodeConnectInfo scriptAddress txInAtScript2 "getTxOutAtAddress"
+  txOutHasAdaValue <- Q.txOutHasValue resultTxOut (C.lovelaceToValue 5_000_000 )
+  assert "txOut has tokens" txOutHasAdaValue
 
 
 countTestInfo =
