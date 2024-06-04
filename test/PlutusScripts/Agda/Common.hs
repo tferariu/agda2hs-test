@@ -242,7 +242,7 @@ agdaValidator param oldLabel red ctx =
                 <> v
             Collecting _ _ _ _ -> False
       Cancel -> case newLabel ctx of
-        Holding -> traceIfFalse (show d) (expired d (scriptContextTxInfo ctx)) -- <> P.show (ifFrom (txInfoValidRange (scriptContextTxInfo ctx)))
+        Holding -> traceIfFalse "too early" (expired d (scriptContextTxInfo ctx)) 
         Collecting _ _ _ _ -> False 
     Holding -> case red of
       Propose v pkh d ->
