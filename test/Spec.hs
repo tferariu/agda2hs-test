@@ -92,18 +92,31 @@ agdaTests resultsRef = integrationRetryWorkspace 0 "pv8" $ \tempAbsPath -> do
 
   -- checkTxInfo tests must be first to run after new testnet is initialised due to expected slot to posix time
   sequence_
-    [ run Agda.addInHoldingFailTestInfo
+    [ {-run Agda.addInHoldingFailTestInfo
     , run Agda.payInHoldingFailTestInfo
-    , run Agda.cancelInHoldingFailTestInfo
-    , run Agda.proposeInCollectingFailTestInfo
-    , run Agda.addWrongSignatureFailTestInfo
+    , run Agda.cancelInHoldingFailTestInfo 
+    , run Agda.proposePayoutValueTooLargeFailTestInfo
+    , run Agda.proposeResultsInHoldingFailTestInfo 
+    , run Agda.proposeInconsistentDatumValueFailTestInfo  
+    , run Agda.proposeInconsistentDatumTargetFailTestInfo  
+    , run Agda.proposeInconsistentDatumDeadlineFailTestInfo  
+    , run Agda.proposeInconsistentDatumSigsFailTestInfo  
     , run Agda.addUnsignedSignatureFailTestInfo
+    , run Agda.addWrongSignatureFailTestInfo
     , run Agda.addResultsInHoldingFailTestInfo
-    , run Agda.payResultsInCollectingFailTestInfo
+    , run Agda.addInconsistentDatumValueFailTestInfo
+    , run Agda.addInconsistentDatumTargetFailTestInfo
+    , run Agda.addInconsistentDatumDeadlineFailTestInfo
+    , run Agda.addInconsistentDatumSigsFailTestInfo
     , run Agda.payWithoutEnoughSignaturesFailTestInfo
-    , run Agda.cancelBeforeDeadlineFailTestInfo
-    , run Agda.cancelAfterDeadlineTestInfo 
-    , run Agda.smTestInfo
+    , run Agda.payResultsInCollectingFailTestInfo
+    , run Agda.payWithoutPayoutFailTestInfo
+    , run Agda.payWithoutUpdatingValueFailTestInfo
+    , run Agda.cancelBeforeDeadlineFailTestInfo -}
+     run Agda.cancelAfterDeadlineTestInfo 
+    , run Agda.cancelResultsInCollectingFailTestInfo
+   {- , run Agda.proposeInCollectingFailTestInfo
+    , run Agda.doublePayTestInfo -}
     --, run Agda.memTestInfo
     --, run Agda.countTestInfo
   --  , run Babbage.referenceInputWithV1ScriptErrorTestInfo

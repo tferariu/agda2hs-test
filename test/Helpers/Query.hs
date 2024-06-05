@@ -27,6 +27,8 @@ import Hedgehog.Extras.Test qualified as HE
 import Hedgehog.Extras.Test.Base qualified as H
 import Helpers.Common (toShelleyBasedEra)
 import Ouroboros.Network.Protocol.LocalStateQuery.Type qualified as O
+import qualified Ouroboros.Consensus.HardFork.History.Qry as Qry
+import           Ouroboros.Consensus.BlockchainTime.WallClock.Types (getSystemStart, toRelativeTime)
 import Data.Time.Clock.POSIX qualified as Time
 
 -- | Find the first UTxO at address and return as TxIn. Used for txbody's txIns.
@@ -244,13 +246,37 @@ getCurrentEpoch
   => C.CardanoEra era
   -> C.LocalNodeConnectInfo
   -> m C.EpochNo
-getCurrentEpoch era localNodeConnectInfo =
+getCurrentEpoch era localNodeConnectInfo = 
   H.leftFailM
     . H.leftFailM
     . liftIO
     $ C.queryNodeLocalState localNodeConnectInfo O.VolatileTip
     $ C.QueryInEra
     $ C.QueryInShelleyBasedEra (toShelleyBasedEra era) C.QueryEpoch
+
+
+getCurrentSlotNo
+  :: (MonadIO m, MonadTest m)
+  => C.CardanoEra era
+  -> C.LocalNodeConnectInfo
+  -> m C.SlotNo
+getCurrentSlotNo era info = do
+  history <- (H.leftFailM . H.leftFailM . liftIO $ (C.executeLocalStateQueryExpr info O.ImmutableTip C.queryEraHistory)) 
+  time <- liftIO Time.getCurrentTime
+  start <- (H.leftFailM . H.leftFailM . liftIO $ (C.executeLocalStateQueryExpr info O.ImmutableTip C.querySystemStart)) 
+  return (case (C.getSlotForRelativeTime (toRelativeTime start time) history) of
+          Left _ -> error "Slot error"
+          Right sn -> sn)
+ --(H.leftFailM . (C.getSlotForRelativeTime (Qry.wallclockToSlot  (RelativeTime rt)) history))
+
+--C.getSlotForRelativeTime (Qry.wallclockToSlot  (RelativeTime rt)) C.queryEraHistory 
+  {-
+  H.leftFailM
+    . H.leftFailM
+    . liftIO
+    $ C.queryNodeLocalState localNodeConnectInfo O.VolatileTip
+    $ C.QueryInEra
+    $ C.QueryInShelleyBasedEra (toShelleyBasedEra era) C.QueryEpoch -}
 
 waitForNextEpoch
   :: (MonadIO m, MonadTest m)
