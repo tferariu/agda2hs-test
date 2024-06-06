@@ -267,6 +267,8 @@ getCurrentSlotNo era info = do
   return (case (C.getSlotForRelativeTime (toRelativeTime start time) history) of
           Left _ -> error "Slot error"
           Right sn -> sn)
+
+          
  --(H.leftFailM . (C.getSlotForRelativeTime (Qry.wallclockToSlot  (RelativeTime rt)) history))
 
 --C.getSlotForRelativeTime (Qry.wallclockToSlot  (RelativeTime rt)) C.queryEraHistory 

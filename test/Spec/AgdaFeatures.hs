@@ -2922,9 +2922,10 @@ cancelAfterDeadlineTest networkOptions TestParams{localNodeConnectInfo, pparams,
 
   Q.waitForTxInAtAddress era localNodeConnectInfo scriptAddress txInAtScript2 "waitForTxInAtAddress"
 
-  slotNo <- Q.getCurrentSlotNo era localNodeConnectInfo
+  --slotNo <- Q.getCurrentSlotNo era localNodeConnectInfo
   time <- Q.waitForPOSIXTime era localNodeConnectInfo "Waiting for POSIX" (startTime + 30)
-  slotNo2 <- Q.getCurrentSlotNo era localNodeConnectInfo
+  
+  slotNo <- Q.getCurrentSlotNo era localNodeConnectInfo
 
   txIn3 <- Q.adaOnlyTxInAtAddress era localNodeConnectInfo w2Addr
   
@@ -2946,8 +2947,8 @@ cancelAfterDeadlineTest networkOptions TestParams{localNodeConnectInfo, pparams,
         { C.txIns = [scriptTxIn3] ++ (Tx.pubkeyTxIns [txIn3])
         , C.txInsCollateral = collateral2
         , C.txOuts = [scriptTxOut3]
-        , C.txValidityLowerBound = Tx.txValidityLowerBound era (slotNo2 - 100)
-        , C.txValidityUpperBound = Tx.txValidityUpperBound era (slotNo2 + 200)
+        , C.txValidityLowerBound = Tx.txValidityLowerBound era (slotNo - 100)
+        , C.txValidityUpperBound = Tx.txValidityUpperBound era (slotNo + 200)
         , C.txExtraKeyWits = Tx.txExtraKeyWits era [w2VKey]
         }
 --{invalidBefore = SJust (SlotNo 624), invalidHereafter = SJust (SlotNo 1124)}) (SlotNo 617))
@@ -3069,9 +3070,10 @@ cancelResultsInCollectingFailTest networkOptions TestParams{localNodeConnectInfo
 
   Q.waitForTxInAtAddress era localNodeConnectInfo scriptAddress txInAtScript2 "waitForTxInAtAddress"
 
-  time <- Q.waitForPOSIXTime era localNodeConnectInfo "Waiting for POSIX" (startTime + 31)
-  slotNo <- Q.getCurrentSlotNo era localNodeConnectInfo
+  time <- Q.waitForPOSIXTime era localNodeConnectInfo "Waiting for POSIX" (startTime + 30)
   
+  slotNo <- Q.getCurrentSlotNo era localNodeConnectInfo
+
   txIn3 <- Q.adaOnlyTxInAtAddress era localNodeConnectInfo w2Addr
 
   let
