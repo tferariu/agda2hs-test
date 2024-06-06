@@ -268,7 +268,7 @@ getCurrentSlotNo era info = do
           Left _ -> error "Slot error"
           Right sn -> sn)
 
-          
+
  --(H.leftFailM . (C.getSlotForRelativeTime (Qry.wallclockToSlot  (RelativeTime rt)) history))
 
 --C.getSlotForRelativeTime (Qry.wallclockToSlot  (RelativeTime rt)) C.queryEraHistory 
@@ -315,12 +315,12 @@ waitForPOSIXTime era localNodeConnectInfo debugStr pTime = go (300 :: Int) -- 30
     go i = do
       now <- liftIO Time.getPOSIXTime
       --currentEpochNo <- getCurrentEpoch era localNodeConnectInfo
-      case now - pTime of
+      case pTime - now of
         diff
-          | diff < 1 -> do
+          | diff > 0 -> do
                       liftIO $ threadDelay 1000000 -- 1s
                       go (pred i)
-          | diff >= 1 -> return now
+          | diff <= 0 -> return now
 
 waitForNextEpoch_
   :: (MonadIO m, MonadTest m)

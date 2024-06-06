@@ -2922,9 +2922,11 @@ cancelAfterDeadlineTest networkOptions TestParams{localNodeConnectInfo, pparams,
 
   Q.waitForTxInAtAddress era localNodeConnectInfo scriptAddress txInAtScript2 "waitForTxInAtAddress"
 
-  --slotNo <- Q.getCurrentSlotNo era localNodeConnectInfo
-  time <- Q.waitForPOSIXTime era localNodeConnectInfo "Waiting for POSIX" (startTime + 30)
-  
+  now <- liftIO Time.getPOSIXTime
+  --slotNo' <- Q.getCurrentSlotNo era localNodeConnectInfo
+
+  time <- Q.waitForPOSIXTime era localNodeConnectInfo "Waiting for POSIX" (now + 30)
+
   slotNo <- Q.getCurrentSlotNo era localNodeConnectInfo
 
   txIn3 <- Q.adaOnlyTxInAtAddress era localNodeConnectInfo w2Addr
