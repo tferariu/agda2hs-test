@@ -2949,8 +2949,8 @@ cancelAfterDeadlineTest networkOptions TestParams{localNodeConnectInfo, pparams,
         { C.txIns = [scriptTxIn3] ++ (Tx.pubkeyTxIns [txIn3])
         , C.txInsCollateral = collateral2
         , C.txOuts = [scriptTxOut3]
-        , C.txValidityLowerBound = Tx.txValidityLowerBound era (slotNo - 100)
-        , C.txValidityUpperBound = Tx.txValidityUpperBound era (slotNo + 200)
+        , C.txValidityLowerBound = Tx.txValidityLowerBound era (slotNo )
+        , C.txValidityUpperBound = Tx.txValidityUpperBound era (slotNo + 100)
         , C.txExtraKeyWits = Tx.txExtraKeyWits era [w2VKey]
         }
 --{invalidBefore = SJust (SlotNo 624), invalidHereafter = SJust (SlotNo 1124)}) (SlotNo 617))

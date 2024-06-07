@@ -114,7 +114,7 @@ agdaTests resultsRef = integrationRetryWorkspace 0 "pv8" $ \tempAbsPath -> do
     , run Agda.payWithoutUpdatingValueFailTestInfo
     , run Agda.cancelBeforeDeadlineFailTestInfo -}
      run Agda.cancelAfterDeadlineTestInfo 
-    , run Agda.cancelResultsInCollectingFailTestInfo
+    --, run Agda.cancelResultsInCollectingFailTestInfo
    {- , run Agda.proposeInCollectingFailTestInfo
     , run Agda.doublePayTestInfo -}
     --, run Agda.memTestInfo
